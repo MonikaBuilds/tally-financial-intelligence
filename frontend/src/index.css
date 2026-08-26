@@ -1,0 +1,318 @@
+:root {
+  --text: #4b5563;
+  --text-h: #111827;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --accent: #4f46e5;
+  --accent-bg: rgba(79, 70, 229, 0.08);
+  --positive: #16a34a;
+  --negative: #dc2626;
+  --sidebar-bg: #111827;
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-active: #ffffff;
+
+  font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #0f1115;
+    --surface: #171a21;
+    --border: #2a2d36;
+    --accent: #818cf8;
+    --accent-bg: rgba(129, 140, 248, 0.12);
+    --positive: #4ade80;
+    --negative: #f87171;
+    --sidebar-bg: #0b0d12;
+    --sidebar-text: #9ca3af;
+    --sidebar-text-active: #ffffff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1, h2, h3 {
+  color: var(--text-h);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Layout */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sidebar-brand {
+  color: var(--sidebar-text-active);
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0 8px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-link {
+  color: var(--sidebar-text);
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-link--active {
+  background: var(--accent);
+  color: var(--sidebar-text-active);
+}
+
+.app-content {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 1100px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 24px;
+}
+
+.page-subtitle {
+  margin-top: 4px;
+  color: var(--text);
+}
+
+/* Stat cards */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-card-label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.stat-card--positive .stat-card-value {
+  color: var(--positive);
+}
+
+.stat-card--negative .stat-card-value {
+  color: var(--negative);
+}
+
+/* Card */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.card-title {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.card-note {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Table */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  text-align: left;
+  color: var(--text);
+  font-weight: 500;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  margin-top: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+/* Key-value list (balance sheet) */
+
+.key-value-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.key-value-list li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.key-value-label {
+  text-transform: capitalize;
+  color: var(--text);
+}
+
+/* Status pill */
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-transform: capitalize;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.status-pill--connected,
+.status-pill--overdue {
+  color: var(--negative);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.status-pill--pending {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.status-pill--connected {
+  color: var(--positive);
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.status-pill--disconnected {
+  color: var(--negative);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.status-pill--receivable {
+  color: var(--positive);
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.status-pill--payable {
+  color: var(--negative);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.status-pill--settled {
+  color: var(--text);
+  background: var(--border);
+}
+
+/* Loader / error / empty states */
+
+.loader,
+.error-message,
+.empty-state {
+  padding: 24px;
+  text-align: center;
+  color: var(--text);
+}
+
+.error-message {
+  color: var(--negative);
+}
+
+/* Button */
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
