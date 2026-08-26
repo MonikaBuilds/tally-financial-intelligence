@@ -41,7 +41,6 @@ function TallyStatus() {
           <>
             <StatusPill status={status.connected ? 'connected' : 'disconnected'} />
             <p className="card-note">{status.message}</p>
-            {status.url && <p className="card-note">URL: {status.url}</p>}
             {status.error && <p className="card-note">{status.error}</p>}
           </>
         )}
