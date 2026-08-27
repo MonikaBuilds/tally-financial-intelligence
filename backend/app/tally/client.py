@@ -65,11 +65,12 @@ class TallyClient:
 
     async def send_xml(
         self,
-        xml_payload: str
+        xml_payload: str,
+        timeout: float = 30.0
     ):
 
         async with httpx.AsyncClient(
-            timeout=30.0
+            timeout=timeout
         ) as client:
 
             response = await client.post(

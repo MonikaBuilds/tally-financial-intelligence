@@ -109,12 +109,14 @@ async def fetch_bills_receivable(
 
 
 async def fetch_bills_payable(
-    company_name: str | None = None
+    company_name: str | None = None,
+    timeout: float = 30.0
 ):
     response = await client.send_xml(
         build_bills_payable_request(
             company_name=company_name
-        )
+        ),
+        timeout=timeout
     )
 
     return parse_outstanding_report(
