@@ -8,6 +8,7 @@ import PendingInvoices from './pages/PendingInvoices'
 import TrialBalance from './pages/TrialBalance'
 import BalanceSheet from './pages/BalanceSheet'
 import TallyStatus from './pages/TallyStatus'
+import Chatbot from './pages/Chatbot'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/trial-balance" element={<TrialBalance />} />
         <Route path="/balance-sheet" element={<BalanceSheet />} />
         <Route path="/tally-status" element={<TallyStatus />} />
+        <Route path="/chatbot" element={<Chatbot />} />
       </Route>
     </Routes>
   )

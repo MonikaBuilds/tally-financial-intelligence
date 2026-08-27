@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router'
+import ChatIcon from '../common/ChatIcon'
 
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/chatbot', label: 'AI Assistant', icon: true },
   { to: '/profit-loss', label: 'Profit & Loss' },
   { to: '/receivables', label: 'Receivables' },
   { to: '/payables', label: 'Payables' },
@@ -25,6 +27,7 @@ function Sidebar() {
               isActive ? 'sidebar-link sidebar-link--active' : 'sidebar-link'
             }
           >
+            {link.icon && <ChatIcon size={16} className="sidebar-link-icon" />}
             {link.label}
           </NavLink>
         ))}
