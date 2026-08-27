@@ -1,3 +1,4 @@
+from app.chatbot.resolver import resolve_party_name
 from datetime import date
 
 from app.tally.service import (
@@ -38,6 +39,46 @@ def _no_data(message: str) -> dict:
     }
 
 
+async def _load_receivables(
+    company_name: str | None = None
+):
+    receivable_bills = await fetch_bills_receivable(
+        company_name=company_name
+    )
+
+    allocations = await fetch_bill_allocations(
+        company_name=company_name
+    )
+
+    outstanding = build_outstanding_summary(
+        allocations
+    )
+
+    return build_receivables_from_tally_report(
+        receivable_bills,
+        outstanding
+    )
+
+
+async def _load_payables(
+    company_name: str | None = None
+):
+    payable_bills = await fetch_bills_payable(
+        company_name=company_name
+    )
+
+    allocations = await fetch_bill_allocations(
+        company_name=company_name
+    )
+
+    outstanding = build_outstanding_summary(
+        allocations
+    )
+
+    return build_payables_from_tally_report(
+        payable_bills,
+        outstanding
+    )
 async def _load_outstanding_data(
     company_name: str | None = None
 ):
@@ -101,7 +142,7 @@ async def _load_financial_summary(
 async def get_receivables_tool(
     company_name: str | None = None
 ) -> dict:
-    receivables, _ = await _load_outstanding_data(
+    receivables = await _load_receivables(
         company_name=company_name
     )
 
@@ -111,7 +152,7 @@ async def get_receivables_tool(
 async def get_payables_tool(
     company_name: str | None = None
 ) -> dict:
-    _, payables = await _load_outstanding_data(
+    payables = await _load_payables(
         company_name=company_name
     )
 
@@ -136,7 +177,7 @@ async def get_pending_invoices_tool(
 async def get_highest_receivable_tool(
     company_name: str | None = None
 ) -> dict:
-    receivables, _ = await _load_outstanding_data(
+    receivables = await _load_receivables(
         company_name=company_name
     )
 
@@ -175,7 +216,7 @@ async def get_highest_receivable_tool(
 async def get_highest_payable_tool(
     company_name: str | None = None
 ) -> dict:
-    _, payables = await _load_outstanding_data(
+    payables = await _load_payables(
         company_name=company_name
     )
 
@@ -214,7 +255,7 @@ async def get_highest_payable_tool(
 async def get_overdue_receivables_tool(
     company_name: str | None = None
 ) -> dict:
-    receivables, _ = await _load_outstanding_data(
+    receivables = await _load_receivables(
         company_name=company_name
     )
 
@@ -239,7 +280,7 @@ async def get_overdue_receivables_tool(
 async def get_overdue_payables_tool(
     company_name: str | None = None
 ) -> dict:
-    _, payables = await _load_outstanding_data(
+    payables = await _load_payables(
         company_name=company_name
     )
 
@@ -421,5 +462,148 @@ async def get_balance_sheet_tool(
             to_date.isoformat()
             if to_date
             else None
+        )
+    })
+    
+def _collect_party_names(
+    receivables: dict,
+    payables: dict
+) -> list[str]:
+    names = []
+
+    for bill in receivables.get("bills", []):
+        party = bill.get("party")
+
+        if party:
+            names.append(party)
+
+    for bill in payables.get("bills", []):
+        party = bill.get("party")
+
+        if party:
+            names.append(party)
+
+    return list(dict.fromkeys(names))
+
+
+async def get_party_outstanding_summary_tool(
+    party_name: str,
+    company_name: str | None = None
+) -> dict:
+    if not party_name or not party_name.strip():
+        return _no_data(
+            "Please provide a party name."
+        )
+
+    receivables, payables = await _load_outstanding_data(
+        company_name=company_name
+    )
+
+    available_party_names = _collect_party_names(
+        receivables,
+        payables
+    )
+
+    resolution = resolve_party_name(
+        requested_name=party_name,
+        party_names=available_party_names
+    )
+
+    if resolution.status == "not_found":
+        return _no_data(
+            "No matching party was found in Tally."
+        )
+
+    if resolution.status == "ambiguous":
+        return {
+            "success": False,
+            "source": "tally",
+            "message": (
+                "Multiple matching parties were found. "
+                "Please provide a more specific party name."
+            ),
+            "data": {
+                "matches": resolution.matches or []
+            }
+        }
+
+    if resolution.status != "resolved":
+        return _no_data(
+            "Unable to resolve the requested party."
+        )
+
+    resolved_party = resolution.value
+
+    receivable_bills = [
+        bill
+        for bill in receivables.get("bills", [])
+        if bill.get("party") == resolved_party
+    ]
+
+    payable_bills = [
+        bill
+        for bill in payables.get("bills", [])
+        if bill.get("party") == resolved_party
+    ]
+
+    total_receivable = sum(
+        bill.get(
+            "outstanding_amount",
+            0.0
+        )
+        for bill in receivable_bills
+    )
+
+    total_payable = sum(
+        bill.get(
+            "outstanding_amount",
+            0.0
+        )
+        for bill in payable_bills
+    )
+
+    return _success({
+        "party": resolved_party,
+        "total_receivable": round(
+            total_receivable,
+            2
+        ),
+        "total_payable": round(
+            total_payable,
+            2
+        ),
+        "receivable_count": len(
+            receivable_bills
+        ),
+        "payable_count": len(
+            payable_bills
+        ),
+        "receivable_bills": receivable_bills,
+        "payable_bills": payable_bills
+    })
+
+async def get_outstanding_summary_tool(
+    company_name: str | None = None
+) -> dict:
+    receivables, payables = await _load_outstanding_data(
+        company_name=company_name
+    )
+
+    return _success({
+        "total_receivable": receivables.get(
+            "total_receivable",
+            0.0
+        ),
+        "receivable_count": receivables.get(
+            "count",
+            0
+        ),
+        "total_payable": payables.get(
+            "total_payable",
+            0.0
+        ),
+        "payable_count": payables.get(
+            "count",
+            0
         )
     })

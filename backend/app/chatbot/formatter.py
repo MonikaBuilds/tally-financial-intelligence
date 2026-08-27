@@ -8,7 +8,6 @@ def format_indian_currency(value) -> str:
     amount = abs(amount)
 
     integer_part = int(round(amount))
-
     number = str(integer_part)
 
     if len(number) <= 3:
@@ -263,6 +262,93 @@ def format_tool_response(
             f"{count} item(s)."
         )
 
+    if tool_name == "get_party_outstanding_summary":
+        party = data.get(
+            "party",
+            "The requested party"
+        )
+
+        total_receivable = data.get(
+            "total_receivable",
+            0
+        )
+
+        total_payable = data.get(
+            "total_payable",
+            0
+        )
+
+        receivable_count = data.get(
+            "receivable_count",
+            0
+        )
+
+        payable_count = data.get(
+            "payable_count",
+            0
+        )
+
+        if total_receivable > 0 and total_payable > 0:
+            return (
+                f"{party} has an outstanding receivable of "
+                f"{format_indian_currency(total_receivable)} "
+                f"across {receivable_count} bill(s), and an "
+                f"outstanding payable of "
+                f"{format_indian_currency(total_payable)} "
+                f"across {payable_count} bill(s)."
+            )
+
+        if total_receivable > 0:
+            return (
+                f"{party} has an outstanding receivable of "
+                f"{format_indian_currency(total_receivable)} "
+                f"across {receivable_count} bill(s), with no "
+                f"outstanding payable."
+            )
+
+        if total_payable > 0:
+            return (
+                f"{party} has an outstanding payable of "
+                f"{format_indian_currency(total_payable)} "
+                f"across {payable_count} bill(s), with no "
+                f"outstanding receivable."
+            )
+
+        return (
+            f"No outstanding receivable or payable "
+            f"was found for {party}."
+        )
+    
+    if tool_name == "get_outstanding_summary":
+        total_receivable = data.get(
+            "total_receivable",
+            0
+        )
+
+        receivable_count = data.get(
+            "receivable_count",
+            0
+        )
+
+        total_payable = data.get(
+            "total_payable",
+            0
+        )
+
+        payable_count = data.get(
+            "payable_count",
+            0
+        )
+
+        return (
+            f"Your total outstanding receivables are "
+            f"{format_indian_currency(total_receivable)} "
+            f"across {receivable_count} bill(s), while your "
+            f"total outstanding payables are "
+            f"{format_indian_currency(total_payable)} "
+            f"across {payable_count} bill(s)."
+        )
+        
     return (
         "The requested financial data was "
         "retrieved successfully from Tally."
