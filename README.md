@@ -1,4 +1,4 @@
-# Tally Financial Intelligence# Tally Financial Intelligence
+# Tally Financial Intelligence
 
 A full-stack financial dashboard and AI chatbot that sits on top of **Tally Prime** and turns raw accounting data into readable reports, live dashboards, and natural-language answers.
 
