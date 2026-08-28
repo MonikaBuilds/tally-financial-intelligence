@@ -8,7 +8,7 @@ Instead of opening Tally and digging through menus, a user can just ask *"what's
 
 ## Why this exists
 
-Tally is where most Indian SMBs keep their real accounting data, but it's a desktop tool — nobody outside the accounts team ever looks at it, and there's no easy way to check numbers from a phone or share a quick summary with a manager.
+Tally is where most Indian SMBs keep their real accounting data, but it's a desktop tool nobody outside the accounts team ever looks at it, and there's no easy way to check numbers from a phone or share a quick summary with a manager.
 
 This project bridges that gap:
 
@@ -127,7 +127,7 @@ tally-financial-intelligence/
 - Python 3.11+
 - Node.js 18+
 - Tally Prime running locally or reachable over the network, with its XML/HTTP gateway enabled
-- A Gemini API key (only needed for the chatbot — the dashboard works without it)
+- A Gemini API key (only needed for the chatbot the dashboard works without it)
 
 ### 1. Backend setup
 
@@ -140,7 +140,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Create a `.env` file inside `backend/` (this file is git-ignored on purpose — never commit it):
+Create a `.env` file inside `backend/` (this file is git-ignored on purpose never commit it):
 
 ```env
 TALLY_HOST=localhost
@@ -199,7 +199,7 @@ Full request/response schemas are visible in the auto-generated Swagger docs onc
 
 ## A note on security
 
-- `.env` holds live credentials (Tally host and the Gemini API key) and is already excluded via `.gitignore` — please keep it that way and never commit a real key.
+- `.env` holds live credentials (Tally host and the Gemini API key) and is already excluded via `.gitignore`  please keep it that way and never commit a real key.
 - The chatbot is intentionally read-only end to end: the regex-based policy filter, the fixed tool list, and Tally's own API all reinforce the same boundary, so there's no single point that could let a write operation slip through.
 
 ---
