@@ -40,7 +40,7 @@ Every number shown anywhere in the app is fetched live from Tally at request tim
 
 This is the part I'm most proud of, so it's worth explaining properly instead of just saying "AI-powered."
 
-The chatbot **does not generate financial numbers itself.** Gemini is only used to figure out *which* Tally report the user is asking about — it never touches the actual figures.
+The chatbot **does not generate financial numbers itself.** Gemini is only used to figure out *which* Tally report the user is asking about it never touches the actual figures.
 
 The flow looks like this:
 
