@@ -102,7 +102,7 @@ tally-financial-intelligence/
 │   ├── app/
 │   │   ├── api/            # FastAPI routers (tally, dashboard, reports, chat)
 │   │   ├── tally/           # Tally XML client, request builder, response parser
-│   │   ├── financial/       # Business logic — turns raw Tally data into clean reports
+│   │   ├── financial/       # Business logic turns raw Tally data into clean reports
 │   │   ├── chatbot/         # Gemini integration, tool registry, executor, policy, formatter
 │   │   ├── core/             # Settings and logging config
 │   │   └── main.py           # FastAPI app entrypoint
