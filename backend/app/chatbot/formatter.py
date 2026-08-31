@@ -113,6 +113,7 @@ def format_tool_response(
 
     if tool_name == "get_highest_receivable":
         party = data.get("party")
+
         amount = data.get(
             "amount",
             0
@@ -132,6 +133,7 @@ def format_tool_response(
 
     if tool_name == "get_highest_payable":
         party = data.get("party")
+
         amount = data.get(
             "amount",
             0
@@ -288,7 +290,10 @@ def format_tool_response(
             0
         )
 
-        if total_receivable > 0 and total_payable > 0:
+        if (
+            total_receivable > 0
+            and total_payable > 0
+        ):
             return (
                 f"{party} has an outstanding receivable of "
                 f"{format_indian_currency(total_receivable)} "
@@ -318,7 +323,7 @@ def format_tool_response(
             f"No outstanding receivable or payable "
             f"was found for {party}."
         )
-    
+
     if tool_name == "get_outstanding_summary":
         total_receivable = data.get(
             "total_receivable",
@@ -348,7 +353,394 @@ def format_tool_response(
             f"{format_indian_currency(total_payable)} "
             f"across {payable_count} bill(s)."
         )
-        
+
+    if tool_name == "get_top_receivables":
+        bills = data.get(
+            "bills",
+            []
+        )
+
+        if not bills:
+            return (
+                "No outstanding receivables "
+                "were found in Tally."
+            )
+
+        lines = []
+
+        for index, bill in enumerate(
+            bills,
+            start=1
+        ):
+            party = bill.get(
+                "party",
+                "Unknown party"
+            )
+
+            amount = bill.get(
+                "outstanding_amount",
+                0
+            )
+
+            reference = bill.get(
+                "bill_reference"
+            )
+
+            line = (
+                f"{index}. {party} - "
+                f"{format_indian_currency(amount)}"
+            )
+
+            if reference:
+                line += (
+                    f" (Bill: {reference})"
+                )
+
+            lines.append(line)
+
+        return (
+            "Top outstanding receivables:\n"
+            + "\n".join(lines)
+        )
+
+    if tool_name == "get_top_payables":
+        bills = data.get(
+            "bills",
+            []
+        )
+
+        if not bills:
+            return (
+                "No outstanding payables "
+                "were found in Tally."
+            )
+
+        lines = []
+
+        for index, bill in enumerate(
+            bills,
+            start=1
+        ):
+            party = bill.get(
+                "party",
+                "Unknown party"
+            )
+
+            amount = bill.get(
+                "outstanding_amount",
+                0
+            )
+
+            reference = bill.get(
+                "bill_reference"
+            )
+
+            line = (
+                f"{index}. {party} - "
+                f"{format_indian_currency(amount)}"
+            )
+
+            if reference:
+                line += (
+                    f" (Bill: {reference})"
+                )
+
+            lines.append(line)
+
+        return (
+            "Top outstanding payables:\n"
+            + "\n".join(lines)
+        )
+
+    if tool_name in {
+        "get_aged_receivables",
+        "get_aged_payables"
+    }:
+        minimum_days = data.get(
+            "minimum_days"
+        )
+
+        count = data.get(
+            "count",
+            0
+        )
+
+        total = data.get(
+            "total_overdue",
+            0
+        )
+
+        buckets = data.get(
+            "buckets",
+            {}
+        )
+
+        bills = data.get(
+            "bills",
+            []
+        )
+
+        item_type = (
+            "receivables"
+            if tool_name == "get_aged_receivables"
+            else "payables"
+        )
+
+        if minimum_days:
+            heading = (
+                f"Outstanding {item_type} overdue "
+                f"at least {minimum_days} days:"
+            )
+        else:
+            heading = (
+                f"{item_type.capitalize()} aging summary:"
+            )
+
+        lines = [
+            heading,
+            (
+                f"Total overdue: "
+                f"{format_indian_currency(total)}"
+            ),
+            f"Pending bills: {count}",
+        ]
+
+        if not minimum_days:
+            bucket_labels = [
+                (
+                    "1_30",
+                    "1-30 days"
+                ),
+                (
+                    "31_60",
+                    "31-60 days"
+                ),
+                (
+                    "61_90",
+                    "61-90 days"
+                ),
+                (
+                    "91_plus",
+                    "91+ days"
+                ),
+            ]
+
+            lines.append("")
+            lines.append(
+                "Aging buckets:"
+            )
+
+            for key, label in bucket_labels:
+                bucket = buckets.get(
+                    key,
+                    {}
+                )
+
+                lines.append(
+                    f"{label}: "
+                    f"{format_indian_currency(bucket.get('amount', 0))} "
+                    f"({bucket.get('count', 0)} bills)"
+                )
+
+        if bills:
+            lines.append("")
+            lines.append(
+                "Bills:"
+            )
+
+            for index, bill in enumerate(
+                bills,
+                start=1
+            ):
+                party = bill.get(
+                    "party",
+                    "Unknown party"
+                )
+
+                amount = bill.get(
+                    "outstanding_amount",
+                    0
+                )
+
+                overdue_days = bill.get(
+                    "overdue_days",
+                    0
+                )
+
+                reference = bill.get(
+                    "bill_reference"
+                )
+
+                line = (
+                    f"{index}. {party} - "
+                    f"{format_indian_currency(amount)} - "
+                    f"{overdue_days} days overdue"
+                )
+
+                if reference:
+                    line += (
+                        f" (Bill: {reference})"
+                    )
+
+                lines.append(line)
+
+        return "\n".join(lines)
+
+    if tool_name == "get_period_comparison":
+        metric = data.get(
+            "metric",
+            "financial metric"
+        )
+
+        first_period = data.get(
+            "first_period",
+            {}
+        )
+
+        second_period = data.get(
+            "second_period",
+            {}
+        )
+
+        first_value = first_period.get(
+            "value",
+            0
+        )
+
+        second_value = second_period.get(
+            "value",
+            0
+        )
+
+        first_from_date = first_period.get(
+            "from_date"
+        )
+
+        first_to_date = first_period.get(
+            "to_date"
+        )
+
+        second_from_date = second_period.get(
+            "from_date"
+        )
+
+        second_to_date = second_period.get(
+            "to_date"
+        )
+
+        difference = data.get(
+            "difference",
+            0
+        )
+
+        percentage_change = data.get(
+            "percentage_change"
+        )
+
+        metric_labels = {
+            "revenue": "Revenue",
+            "expenses": "Expenses",
+            "net_profit": "Net profit"
+        }
+
+        metric_label = metric_labels.get(
+            metric,
+            metric.replace(
+                "_",
+                " "
+            ).title()
+        )
+
+        lines = [
+            f"{metric_label} comparison:",
+            (
+                f"{first_from_date} to "
+                f"{first_to_date}: "
+                f"{format_indian_currency(first_value)}"
+            ),
+            (
+                f"{second_from_date} to "
+                f"{second_to_date}: "
+                f"{format_indian_currency(second_value)}"
+            )
+        ]
+
+        if difference > 0:
+            direction = "higher"
+        elif difference < 0:
+            direction = "lower"
+        else:
+            direction = "unchanged"
+
+        if direction == "unchanged":
+            lines.append(
+                f"{metric_label} remained unchanged."
+            )
+
+        else:
+            difference_text = (
+                format_indian_currency(
+                    abs(difference)
+                )
+            )
+
+            if percentage_change is not None:
+                lines.append(
+                    f"{metric_label} is "
+                    f"{difference_text} {direction} "
+                    f"({abs(percentage_change):.2f}%)."
+                )
+
+            else:
+                lines.append(
+                    f"{metric_label} is "
+                    f"{difference_text} {direction}."
+                )
+
+        return "\n".join(lines)
+    
+    if tool_name == "get_financial_summary":
+        revenue = data.get("revenue", 0)
+        expenses = data.get("expenses", 0)
+        net_profit = data.get("net_profit", 0)
+        receivables = data.get("receivables", 0)
+        payables = data.get("payables", 0)
+        pending_invoices = data.get("pending_invoices", 0)
+
+        from_date = data.get("from_date")
+        to_date = data.get("to_date")
+
+        lines = [
+            "Financial summary:"
+        ]
+
+        if from_date and to_date:
+            lines.append(
+                f"Period: {from_date} to {to_date}"
+            )
+
+        lines.extend([
+            f"Revenue: {format_indian_currency(revenue)}",
+            f"Expenses: {format_indian_currency(expenses)}",
+        ])
+
+        if net_profit >= 0:
+            lines.append(
+                f"Net profit: {format_indian_currency(net_profit)}"
+            )
+        else:
+            lines.append(
+                f"Net loss: {format_indian_currency(abs(net_profit))}"
+            )
+
+        lines.extend([
+            f"Receivables: {format_indian_currency(receivables)}",
+            f"Payables: {format_indian_currency(payables)}",
+            f"Pending invoices: {pending_invoices}"
+        ])
+
+        return "\n".join(lines)
+
     return (
         "The requested financial data was "
         "retrieved successfully from Tally."
