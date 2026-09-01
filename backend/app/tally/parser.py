@@ -4,10 +4,11 @@ from datetime import datetime
 
 
 # ============================================================
-# XML CLEANING / COMMON HELPERS
+# XML CLEANING
 # ============================================================
 
 def clean_tally_xml(xml_text: str) -> str:
+
     def clean_numeric_reference(match):
         raw_value = match.group(1)
 
@@ -29,21 +30,20 @@ def clean_tally_xml(xml_text: str) -> str:
         except ValueError:
             return ""
 
-    # Remove invalid numeric XML references such as &#4;
     xml_text = re.sub(
         r"&#(x[0-9A-Fa-f]+|\d+);",
         clean_numeric_reference,
         xml_text
     )
 
-    # Tally can sometimes return undeclared UDF namespace tags.
+    # Tally sometimes returns UDF tags without declaring the namespace.
     xml_text = re.sub(
         r"<(/?)UDF:",
         r"<\1UDF_",
         xml_text
     )
 
-    # Remove XML 1.0 invalid control characters.
+    # Remove invalid XML 1.0 control characters.
     xml_text = "".join(
         char
         for char in xml_text
@@ -58,6 +58,10 @@ def parse_xml(xml_text: str):
     return ET.fromstring(cleaned_xml)
 
 
+# ============================================================
+# BASIC HELPERS
+# ============================================================
+
 def to_float(value):
     if value is None:
         return 0.0
@@ -67,10 +71,8 @@ def to_float(value):
     if not value:
         return 0.0
 
-    # Remove commas and spaces.
     normalized = value.replace(",", "").replace(" ", "")
 
-    # Handle Dr / Cr suffixes.
     upper = normalized.upper()
 
     if upper.endswith("DR") or upper.endswith("CR"):
@@ -91,7 +93,7 @@ def format_tally_date(value):
 
     supported_formats = (
         "%Y%m%d",
-        "%d-%b-%y",
+        "%d-%b-%y"
     )
 
     for date_format in supported_formats:
@@ -108,7 +110,7 @@ def format_tally_date(value):
 
 
 # ============================================================
-# COMPANY
+# COMPANIES
 # ============================================================
 
 def parse_companies(xml_response: str):
@@ -154,21 +156,22 @@ def parse_profit_loss(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "PLAMT"
         ):
+
             amount_block = elements[index + 1]
 
             main_value = amount_block.findtext("BSMAINAMT")
             sub_value = amount_block.findtext("PLSUBAMT")
 
-            if main_value is not None:
+            if main_value:
                 main_amount = to_float(main_value)
 
-            if sub_value is not None:
+            if sub_value:
                 sub_amount = to_float(sub_value)
 
         report.append({
             "name": name.strip(),
             "main_amount": main_amount,
-            "sub_amount": sub_amount,
+            "sub_amount": sub_amount
         })
 
     return report
@@ -201,6 +204,7 @@ def parse_trial_balance(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "DSPACCINFO"
         ):
+
             info = elements[index + 1]
 
             debit_value = info.findtext(
@@ -211,16 +215,16 @@ def parse_trial_balance(xml_response: str):
                 "./DSPCLCRAMT/DSPCLCRAMTA"
             )
 
-            if debit_value is not None:
+            if debit_value:
                 debit = to_float(debit_value)
 
-            if credit_value is not None:
+            if credit_value:
                 credit = to_float(credit_value)
 
         report.append({
             "name": name.strip(),
             "debit": debit,
-            "credit": credit,
+            "credit": credit
         })
 
     return report
@@ -254,20 +258,21 @@ def parse_balance_sheet(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "BSAMT"
         ):
+
             amount_block = elements[index + 1]
 
             main_value = amount_block.findtext("BSMAINAMT")
             sub_value = amount_block.findtext("BSSUBAMT")
 
-            if main_value is not None:
+            if main_value:
                 amount = to_float(main_value)
 
-            elif sub_value is not None:
+            elif sub_value:
                 amount = to_float(sub_value)
 
         report.append({
             "name": name.strip(),
-            "amount": amount,
+            "amount": amount
         })
 
     return report
@@ -361,7 +366,7 @@ def parse_bill_allocations(xml_response: str):
                     "voucher_type": voucher_type,
                     "voucher_number": voucher_number,
                     "voucher_date": voucher_date,
-                    "guid": guid,
+                    "guid": guid
                 })
 
     return bills
@@ -439,7 +444,7 @@ def parse_outstanding_report(
             ),
             "due_date": due_date,
             "overdue_days": overdue_days,
-            "type": report_type,
+            "type": report_type
         })
 
     return bills
@@ -453,6 +458,7 @@ def parse_ledger_list(xml_response: str):
     root = parse_xml(xml_response)
 
     ledgers = []
+    seen = set()
 
     for ledger in root.findall(".//LEDGER"):
 
@@ -461,35 +467,30 @@ def parse_ledger_list(xml_response: str):
         if not name:
             continue
 
-        ledgers.append({
-            "name": name.strip(),
+        name = name.strip()
 
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        ledgers.append({
+            "name": name,
             "parent": (
                 ledger.findtext("PARENT", "") or ""
             ).strip(),
-
             "opening_balance": to_float(
                 ledger.findtext("OPENINGBALANCE")
             ),
-
             "closing_balance": to_float(
                 ledger.findtext("CLOSINGBALANCE")
-            ),
+            )
         })
 
-    # Avoid duplicate ledger definitions.
-    unique_ledgers = {}
-
-    for ledger in ledgers:
-        key = ledger["name"].casefold()
-
-        if key not in unique_ledgers:
-            unique_ledgers[key] = ledger
-
-    ledgers = list(unique_ledgers.values())
-
     ledgers.sort(
-        key=lambda item: item["name"].casefold()
+        key=lambda item: item["name"]
     )
 
     return ledgers
@@ -503,15 +504,6 @@ def _same_ledger_name(
     left: str | None,
     right: str | None
 ) -> bool:
-    """
-    Compare ledger names safely.
-
-    Example:
-        'Apex Office Solutions'
-        '  Apex Office Solutions  '
-
-    are treated as the same ledger.
-    """
 
     left_value = " ".join(
         (left or "").split()
@@ -528,40 +520,16 @@ def _same_ledger_name(
 
 
 def _ledger_entry_nodes(voucher):
-    """
-    Get ledger entries from Tally.
-
-    Important:
-    Tally sometimes returns:
-
-        A
-        B
-        C
-        D
-        A
-        B
-        C
-        D
-
-    inside the SAME voucher.
-
-    The second A-B-C-D block is a repeated representation,
-    not another accounting transaction.
-
-    This function removes that exact repeated block.
-    """
 
     nodes = []
     seen_object_ids = set()
 
-    paths = (
+    for path in (
         "./ALLLEDGERENTRIES.LIST",
         "./LEDGERENTRIES.LIST",
         ".//ALLLEDGERENTRIES.LIST",
         ".//LEDGERENTRIES.LIST",
-    )
-
-    for path in paths:
+    ):
 
         for node in voucher.findall(path):
 
@@ -571,10 +539,7 @@ def _ledger_entry_nodes(voucher):
                 nodes.append(node)
                 seen_object_ids.add(marker)
 
-    # --------------------------------------------------------
-    # Remove exact repeated blocks
-    # --------------------------------------------------------
-
+    # Remove exact repeated ledger-entry blocks inside one voucher.
     def node_signature(node):
         return (
             node.findtext(
@@ -590,7 +555,7 @@ def _ledger_entry_nodes(voucher):
             node.findtext(
                 "ISDEEMEDPOSITIVE",
                 ""
-            ).strip().casefold(),
+            ).strip().casefold()
         )
 
     signatures = [
@@ -598,46 +563,36 @@ def _ledger_entry_nodes(voucher):
         for node in nodes
     ]
 
-    length = len(signatures)
-
-    # Example:
-    #
-    # A B C D A B C D
-    #
-    # becomes:
-    #
-    # A B C D
-    #
     if (
-        length > 1
-        and length % 2 == 0
-        and signatures[:length // 2]
-        == signatures[length // 2:]
+        len(signatures) > 1
+        and len(signatures) % 2 == 0
+        and signatures[
+            :len(signatures) // 2
+        ]
+        ==
+        signatures[
+            len(signatures) // 2:
+        ]
     ):
-        nodes = nodes[:length // 2]
+
+        nodes = nodes[
+            :len(nodes) // 2
+        ]
 
     return nodes
 
 
 def _inventory_entry_nodes(voucher):
-    """
-    Return inventory entries.
-
-    Useful for Material In / Material Out / Stock Journal
-    vouchers where the other side is represented as stock.
-    """
 
     nodes = []
     seen = set()
 
-    paths = (
+    for path in (
         "./ALLINVENTORYENTRIES.LIST",
         "./INVENTORYENTRIES.LIST",
         ".//ALLINVENTORYENTRIES.LIST",
         ".//INVENTORYENTRIES.LIST",
-    )
-
-    for path in paths:
+    ):
 
         for node in voucher.findall(path):
 
@@ -662,17 +617,6 @@ def parse_ledger_report(
     from_date: str | None = None,
     to_date: str | None = None
 ):
-    """
-    Build a Tally-style ledger statement.
-
-    Important fixes:
-
-    1. Duplicate ledger-entry blocks inside one voucher are removed.
-    2. Duplicate vouchers are removed using voucher information.
-    3. Running balance is calculated from the complete history.
-    4. From-date opening balance is carried forward correctly.
-    5. Closing balance is calculated from the final filtered transaction.
-    """
 
     root = parse_xml(xml_response)
 
@@ -682,12 +626,15 @@ def parse_ledger_report(
 
     entries = []
 
-    # Used to prevent the same voucher from being processed twice.
-    seen_vouchers = set()
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # This set removes duplicate FINAL ledger rows.
+    #
+    # Tally can return the same voucher multiple times with
+    # slightly different XML structures/signatures.
+    # --------------------------------------------------------
 
-    # --------------------------------------------------------
-    # Process vouchers
-    # --------------------------------------------------------
+    seen_rows = set()
 
     for voucher in root.findall(".//VOUCHER"):
 
@@ -700,15 +647,6 @@ def parse_ledger_report(
             "No"
         ).strip().casefold() == "yes":
             continue
-
-        # ----------------------------------------------------
-        # Basic voucher information
-        # ----------------------------------------------------
-
-        voucher_guid = voucher.findtext(
-            "GUID",
-            ""
-        ).strip()
 
         voucher_date = format_tally_date(
             voucher.findtext("DATE")
@@ -734,67 +672,12 @@ def parse_ledger_report(
             ""
         ).strip()
 
-        # ----------------------------------------------------
-        # Get ledger entries.
-        #
-        # This is where the A-B-C-D-A-B-C-D duplication
-        # is removed.
-        # ----------------------------------------------------
-
         ledger_entry_nodes = _ledger_entry_nodes(
             voucher
         )
 
         # ----------------------------------------------------
-        # Create order-independent voucher signature.
-        #
-        # Do NOT depend on GUID alone because the same logical
-        # voucher can appear more than once in Tally's XML.
-        # ----------------------------------------------------
-
-        voucher_signature = tuple(
-            sorted(
-                (
-                    node.findtext(
-                        "LEDGERNAME",
-                        ""
-                    ).strip(),
-
-                    round(
-                        to_float(
-                            node.findtext("AMOUNT")
-                        ),
-                        2
-                    ),
-
-                    node.findtext(
-                        "ISDEEMEDPOSITIVE",
-                        ""
-                    ).strip().casefold(),
-                )
-
-                for node in ledger_entry_nodes
-            )
-        )
-
-        dedup_key = (
-            voucher_date,
-            voucher_type,
-            voucher_number,
-            voucher_signature,
-        )
-
-        # ----------------------------------------------------
-        # Skip exact duplicate voucher
-        # ----------------------------------------------------
-
-        if dedup_key in seen_vouchers:
-            continue
-
-        seen_vouchers.add(dedup_key)
-
-        # ----------------------------------------------------
-        # Find contra ledger names.
+        # Find contra ledger names
         # ----------------------------------------------------
 
         contra_names = []
@@ -817,8 +700,7 @@ def parse_ledger_report(
 
             contra_names.append(name)
 
-        # Remove duplicate contra names while
-        # preserving order.
+        # Preserve order but remove duplicates.
         contra_names = list(
             dict.fromkeys(contra_names)
         )
@@ -828,7 +710,7 @@ def parse_ledger_report(
         )
 
         # ----------------------------------------------------
-        # Inventory fallback.
+        # Inventory fallback
         # ----------------------------------------------------
 
         if not contra_label:
@@ -856,13 +738,17 @@ def parse_ledger_report(
             )
 
             if stock_item_names:
+
                 contra_label = (
                     "Stock Item: "
-                    + ", ".join(stock_item_names)
+                    +
+                    ", ".join(
+                        stock_item_names
+                    )
                 )
 
         # ----------------------------------------------------
-        # Process matching ledger entries.
+        # Process target ledger entries
         # ----------------------------------------------------
 
         for ledger_entry in ledger_entry_nodes:
@@ -872,7 +758,6 @@ def parse_ledger_report(
                 ""
             ).strip()
 
-            # Only process requested ledger.
             if not _same_ledger_name(
                 entry_ledger,
                 target_ledger
@@ -887,15 +772,17 @@ def parse_ledger_report(
                 amount_text
             )
 
-            is_deemed_positive = ledger_entry.findtext(
-                "ISDEEMEDPOSITIVE",
-                ""
-            ).strip().casefold()
+            is_deemed_positive = (
+                ledger_entry.findtext(
+                    "ISDEEMEDPOSITIVE",
+                    ""
+                )
+                .strip()
+                .casefold()
+            )
 
             # ------------------------------------------------
-            # Determine Debit / Credit.
-            #
-            # Tally's ISDEEMEDPOSITIVE is the primary source.
+            # Determine debit / credit
             # ------------------------------------------------
 
             if is_deemed_positive == "yes":
@@ -910,65 +797,73 @@ def parse_ledger_report(
 
             else:
 
-                # Fallback when Tally does not provide
-                # ISDEEMEDPOSITIVE.
                 if amount > 0:
+
                     debit = amount
                     credit = 0.0
 
                 elif amount < 0:
+
                     debit = 0.0
                     credit = abs(amount)
 
                 else:
+
                     debit = 0.0
                     credit = 0.0
 
+            particulars = (
+                contra_label
+                or party_name
+                or narration
+                or entry_ledger
+            )
+
+            # ------------------------------------------------
+            # FINAL ROW DEDUPLICATION
+            #
+            # This is the important fix.
+            # ------------------------------------------------
+
+            row_key = (
+                voucher_date or "",
+                voucher_type.casefold(),
+                voucher_number,
+                entry_ledger.casefold(),
+                particulars.casefold(),
+                round(debit, 2),
+                round(credit, 2),
+            )
+
+            if row_key in seen_rows:
+                continue
+
+            seen_rows.add(row_key)
+
             entries.append({
                 "date": voucher_date,
-
                 "voucher_type": voucher_type,
-
                 "voucher_number": voucher_number,
-
-                "particulars": (
-                    contra_label
-                    or party_name
-                    or narration
-                    or entry_ledger
-                ),
-
+                "particulars": particulars,
                 "narration": narration,
-
-                "debit": round(
-                    debit,
-                    2
-                ),
-
-                "credit": round(
-                    credit,
-                    2
-                ),
-
-                # GUID is kept internally/usefully available,
-                # but is NOT used as the only dedup key.
-                "guid": voucher_guid,
+                "debit": round(debit, 2),
+                "credit": round(credit, 2),
             })
 
     # ========================================================
-    # SORT COMPLETE HISTORY
+    # SORT TRANSACTIONS
     # ========================================================
 
     entries.sort(
         key=lambda row: (
             row["date"] or "",
-            row["voucher_number"] or "",
             row["voucher_type"] or "",
+            row["voucher_number"] or ""
         )
     )
 
     # ========================================================
-    # CALCULATE RUNNING BALANCE
+    # RUNNING BALANCE
     # ========================================================
 
     book_opening = round(
@@ -982,7 +877,8 @@ def parse_ledger_report(
 
         running_balance += (
             entry["debit"]
-            - entry["credit"]
+            -
+            entry["credit"]
         )
 
         entry["running_balance"] = round(
@@ -991,7 +887,7 @@ def parse_ledger_report(
         )
 
     # ========================================================
-    # FIND OPENING BALANCE FOR REQUESTED FROM DATE
+    # DISPLAY OPENING BALANCE
     # ========================================================
 
     display_opening = book_opening
@@ -1009,12 +905,13 @@ def parse_ledger_report(
 
         if preceding_entries:
 
-            display_opening = preceding_entries[-1][
-                "running_balance"
-            ]
+            display_opening = (
+                preceding_entries[-1]
+                ["running_balance"]
+            )
 
     # ========================================================
-    # FILTER FROM DATE
+    # DATE FILTER
     # ========================================================
 
     filtered_entries = entries
@@ -1029,10 +926,6 @@ def parse_ledger_report(
                 and entry["date"] >= from_date
             )
         ]
-
-    # ========================================================
-    # FILTER TO DATE
-    # ========================================================
 
     if to_date:
 
@@ -1051,25 +944,26 @@ def parse_ledger_report(
 
     if filtered_entries:
 
-        calculated_closing = filtered_entries[-1][
-            "running_balance"
-        ]
+        calculated_closing = (
+            filtered_entries[-1]
+            ["running_balance"]
+        )
 
     else:
 
-        calculated_closing = display_opening
+        calculated_closing = (
+            display_opening
+        )
 
-    # --------------------------------------------------------
-    # If no date filtering is being performed and Tally
-    # supplied a reliable closing balance, use it.
-    # --------------------------------------------------------
-
+    # Only use Tally's closing balance when
+    # there is no date filtering.
     if (
         not filtered_entries
         and closing_balance is not None
         and not from_date
         and not to_date
     ):
+
         final_closing = round(
             closing_balance,
             2
@@ -1083,32 +977,15 @@ def parse_ledger_report(
         )
 
     # ========================================================
-    # REMOVE INTERNAL GUID FROM RESPONSE
-    # ========================================================
-
-    for entry in filtered_entries:
-
-        entry.pop(
-            "guid",
-            None
-        )
-
-    # ========================================================
-    # RETURN REPORT
+    # RETURN
     # ========================================================
 
     return {
         "ledger_name": target_ledger,
-
         "opening_balance": round(
             display_opening,
             2
         ),
-
-        "closing_balance": round(
-            final_closing,
-            2
-        ),
-
+        "closing_balance": final_closing,
         "entries": filtered_entries,
     }
