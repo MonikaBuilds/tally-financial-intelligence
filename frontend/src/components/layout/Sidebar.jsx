@@ -4,6 +4,7 @@ import ChatIcon from '../common/ChatIcon'
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/chatbot', label: 'AI Assistant', icon: true },
+  { to: '/ledger', label: 'Ledger' },
   { to: '/profit-loss', label: 'Profit & Loss' },
   { to: '/receivables', label: 'Receivables' },
   { to: '/payables', label: 'Payables' },

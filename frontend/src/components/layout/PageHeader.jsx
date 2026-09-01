@@ -1,8 +1,11 @@
-function PageHeader({ title, subtitle }) {
+function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="page-header">
-      <h1>{title}</h1>
-      {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      <div>
+        <h1>{title}</h1>
+        {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      </div>
+      {actions && <div className="page-header-actions">{actions}</div>}
     </div>
   )
 }

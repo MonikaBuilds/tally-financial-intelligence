@@ -4,6 +4,7 @@ import Loader from '../components/common/Loader'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import DataTable from '../components/common/DataTable'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -25,7 +26,10 @@ function TrialBalance() {
 
   return (
     <>
-      <PageHeader title="Trial Balance" />
+      <PageHeader
+        title="Trial Balance"
+        actions={<ExportButtons basePath="/reports/trial-balance/export" filenameBase="trial_balance" />}
+      />
 
       <Card>
         <DataTable columns={COLUMNS} rows={report} />

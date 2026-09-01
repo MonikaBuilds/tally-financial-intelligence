@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
+import Ledger from './pages/Ledger'
 import ProfitLoss from './pages/ProfitLoss'
 import Receivables from './pages/Receivables'
 import Payables from './pages/Payables'
@@ -15,6 +16,7 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/ledger" element={<Ledger />} />
         <Route path="/profit-loss" element={<ProfitLoss />} />
         <Route path="/receivables" element={<Receivables />} />
         <Route path="/payables" element={<Payables />} />

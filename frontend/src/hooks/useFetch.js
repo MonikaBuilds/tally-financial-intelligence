@@ -2,25 +2,25 @@ import { useEffect, useState } from 'react'
 import { apiGet } from '../api/client'
 
 export function useFetch(path) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [state, setState] = useState({ data: null, loading: Boolean(path), error: null })
 
   useEffect(() => {
+    // A falsy path means "nothing to fetch yet" (e.g. the Ledger page
+    // waiting on the user to pick a ledger before it has a query to run).
+    // We don't touch state here - the neutral value is returned directly
+    // below, without going through an extra render.
+    if (!path) return
+
     let ignore = false
 
-    setLoading(true)
-    setError(null)
+    setState({ data: null, loading: true, error: null })
 
     apiGet(path)
       .then((result) => {
-        if (!ignore) setData(result)
+        if (!ignore) setState({ data: result, loading: false, error: null })
       })
       .catch((err) => {
-        if (!ignore) setError(err.message)
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false)
+        if (!ignore) setState({ data: null, loading: false, error: err.message })
       })
 
     return () => {
@@ -28,5 +28,9 @@ export function useFetch(path) {
     }
   }, [path])
 
-  return { data, loading, error }
+  if (!path) {
+    return { data: null, loading: false, error: null }
+  }
+
+  return state
 }
