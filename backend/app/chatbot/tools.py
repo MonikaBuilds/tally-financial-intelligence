@@ -1,4 +1,4 @@
-from app.chatbot.resolver import resolve_party_name
+from app.chatbot.resolver import resolve_party_name, resolve_name
 from datetime import date
 
 from app.tally.service import (
@@ -7,7 +7,9 @@ from app.tally.service import (
     fetch_balance_sheet,
     fetch_bill_allocations,
     fetch_bills_receivable,
-    fetch_bills_payable
+    fetch_bills_payable,
+    fetch_ledger_list,
+    fetch_ledger_report
 )
 
 from app.financial.service import (
@@ -581,6 +583,106 @@ async def get_party_outstanding_summary_tool(
         "receivable_bills": receivable_bills,
         "payable_bills": payable_bills
     })
+
+async def get_ledger_report_tool(
+    ledger_name: str,
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None
+) -> dict:
+    if not ledger_name or not ledger_name.strip():
+        return _no_data(
+            "Please provide a ledger name."
+        )
+
+    ledgers = await fetch_ledger_list(
+        company_name=company_name
+    )
+
+    available_ledger_names = [
+        ledger["name"]
+        for ledger in ledgers
+        if ledger.get("name")
+    ]
+
+    resolution = resolve_name(
+        requested_name=ledger_name,
+        available_names=available_ledger_names
+    )
+
+    if resolution.status == "not_found":
+        return _no_data(
+            "No matching ledger was found in Tally."
+        )
+
+    if resolution.status == "ambiguous":
+        return {
+            "success": False,
+            "source": "tally",
+            "message": (
+                "Multiple matching ledgers were found. "
+                "Please provide a more specific ledger name."
+            ),
+            "data": {
+                "matches": resolution.matches or []
+            }
+        }
+
+    if resolution.status != "resolved":
+        return _no_data(
+            "Unable to resolve the requested ledger."
+        )
+
+    resolved_ledger = resolution.value
+
+    report = await fetch_ledger_report(
+        ledger_name=resolved_ledger,
+        company_name=company_name,
+        from_date=from_date,
+        to_date=to_date
+    )
+
+    entries = report.get("entries", [])
+
+    total_debit = sum(
+        entry.get("debit", 0.0)
+        for entry in entries
+    )
+
+    total_credit = sum(
+        entry.get("credit", 0.0)
+        for entry in entries
+    )
+
+    return _success({
+        "ledger_name": report.get(
+            "ledger_name",
+            resolved_ledger
+        ),
+        "opening_balance": report.get(
+            "opening_balance",
+            0.0
+        ),
+        "closing_balance": report.get(
+            "closing_balance",
+            0.0
+        ),
+        "total_debit": round(total_debit, 2),
+        "total_credit": round(total_credit, 2),
+        "entry_count": len(entries),
+        "entries": entries,
+        "from_date": (
+            from_date.isoformat()
+            if from_date
+            else None
+        ),
+        "to_date": (
+            to_date.isoformat()
+            if to_date
+            else None
+        )
+    })
+
 
 async def get_outstanding_summary_tool(
     company_name: str | None = None

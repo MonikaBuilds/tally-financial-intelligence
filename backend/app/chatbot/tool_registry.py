@@ -13,7 +13,8 @@ from app.chatbot.tools import (
     get_trial_balance_tool,
     get_balance_sheet_tool,
     get_party_outstanding_summary_tool,
-    get_outstanding_summary_tool
+    get_outstanding_summary_tool,
+    get_ledger_report_tool
 )
 
 
@@ -37,6 +38,7 @@ TOOL_FUNCTIONS = {
     "get_outstanding_summary": (
         get_outstanding_summary_tool
     ),
+    "get_ledger_report": get_ledger_report_tool,
 }
 
 
@@ -367,6 +369,51 @@ TOOL_DEFINITIONS = [
                     )
                 }
             }
+        }
+    },
+    {
+        "type": "function",
+        "name": "get_ledger_report",
+        "description": (
+            "Get a ledger's statement from Tally: its opening "
+            "balance, closing balance, and every voucher entry "
+            "posted to it, with a running balance. Use this "
+            "whenever the user asks about a specific ledger's "
+            "balance, transactions, statement, or history "
+            "(e.g. 'show me the Cash ledger', 'what's the balance "
+            "of ABC Traders', 'entries in the Bank account "
+            "last month')."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ledger_name": {
+                    "type": "string",
+                    "description": (
+                        "The ledger name mentioned by the user, "
+                        "e.g. 'Cash', 'Bank', or a party/ledger name."
+                    )
+                },
+                "company_name": {
+                    "type": "string",
+                    "description": "Optional Tally company name."
+                },
+                "from_date": {
+                    "type": "string",
+                    "description": (
+                        "Optional start date in DD-MM-YYYY format."
+                    )
+                },
+                "to_date": {
+                    "type": "string",
+                    "description": (
+                        "Optional end date in DD-MM-YYYY format."
+                    )
+                }
+            },
+            "required": [
+                "ledger_name"
+            ]
         }
     }
 ]

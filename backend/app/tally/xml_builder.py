@@ -283,6 +283,121 @@ def build_bills_receivable_request(
     """
 
 
+def build_ledger_list_request(
+    company_name: str | None = None
+):
+    company_xml = build_company_variable(
+        company_name
+    )
+
+    return f"""
+    <ENVELOPE>
+        <HEADER>
+            <VERSION>1</VERSION>
+            <TALLYREQUEST>Export</TALLYREQUEST>
+            <TYPE>Collection</TYPE>
+            <ID>List of Ledgers</ID>
+        </HEADER>
+
+        <BODY>
+            <DESC>
+                <STATICVARIABLES>
+                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+                    {company_xml}
+                </STATICVARIABLES>
+
+                <TDL>
+                    <TDLMESSAGE>
+
+                        <COLLECTION NAME="List of Ledgers">
+                            <TYPE>Ledger</TYPE>
+                            <FETCH>NAME, PARENT, OPENINGBALANCE, CLOSINGBALANCE</FETCH>
+                        </COLLECTION>
+
+                    </TDLMESSAGE>
+                </TDL>
+
+            </DESC>
+        </BODY>
+    </ENVELOPE>
+    """
+
+
+def build_ledger_report_request(
+    ledger_name: str,
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None
+):
+    company_xml = build_company_variable(
+        company_name
+    )
+
+    from_date_xml = ""
+    to_date_xml = ""
+
+    if from_date:
+        from_date_xml = (
+            f"<SVFROMDATE>"
+            f"{format_tally_date(from_date)}"
+            f"</SVFROMDATE>"
+        )
+
+    if to_date:
+        to_date_xml = (
+            f"<SVTODATE>"
+            f"{format_tally_date(to_date)}"
+            f"</SVTODATE>"
+        )
+
+    return f"""
+    <ENVELOPE>
+        <HEADER>
+            <VERSION>1</VERSION>
+            <TALLYREQUEST>Export</TALLYREQUEST>
+            <TYPE>Collection</TYPE>
+            <ID>Ledger Voucher Collection</ID>
+        </HEADER>
+
+        <BODY>
+            <DESC>
+
+                <STATICVARIABLES>
+                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+                    {company_xml}
+                    {from_date_xml}
+                    {to_date_xml}
+                </STATICVARIABLES>
+
+                <TDL>
+                    <TDLMESSAGE>
+
+                        <COLLECTION NAME="Ledger Voucher Collection">
+                            <TYPE>Voucher</TYPE>
+
+                            <FETCH>
+                                DATE,
+                                GUID,
+                                VOUCHERTYPENAME,
+                                VOUCHERNUMBER,
+                                NARRATION,
+                                PARTYLEDGERNAME,
+                                ISDELETED,
+                                ALLLEDGERENTRIES.*,
+                                ALLINVENTORYENTRIES.*
+                            </FETCH>
+
+                        </COLLECTION>
+
+                    </TDLMESSAGE>
+                </TDL>
+
+            </DESC>
+        </BODY>
+    </ENVELOPE>
+    """
+
+
 def build_bills_payable_request(
     company_name: str | None = None
 ):
