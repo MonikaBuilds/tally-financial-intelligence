@@ -11,7 +11,11 @@ CHATBOT_TOOL_TIMEOUT = 10.0
 
 DATE_ARGUMENTS = {
     "from_date",
-    "to_date"
+    "to_date",
+    "first_from_date",
+    "first_to_date",
+    "second_from_date",
+    "second_to_date"
 }
 
 
@@ -66,6 +70,38 @@ def _prepare_arguments(
 
     from_date = prepared.get("from_date")
     to_date = prepared.get("to_date")
+    
+    first_from_date = prepared.get(
+        "first_from_date"
+    )
+    first_to_date = prepared.get(
+        "first_to_date"
+    )
+
+    if (
+        first_from_date is not None
+        and first_to_date is not None
+        and first_from_date > first_to_date
+    ):
+        raise ValueError(
+            "first_from_date cannot be later than first_to_date."
+        )
+
+    second_from_date = prepared.get(
+        "second_from_date"
+    )
+    second_to_date = prepared.get(
+        "second_to_date"
+    )
+
+    if (
+        second_from_date is not None
+        and second_to_date is not None
+        and second_from_date > second_to_date
+    ):
+        raise ValueError(
+            "second_from_date cannot be later than second_to_date."
+        )
 
     if (
         from_date is not None

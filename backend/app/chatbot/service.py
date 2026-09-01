@@ -1,6 +1,10 @@
 from app.chatbot.executor import execute_tool
 from app.chatbot.formatter import format_tool_response
 from app.chatbot.gemini_client import select_tool
+from app.chatbot.date_resolver import (
+    resolve_date_range,
+    resolve_comparison_ranges
+)
 from app.chatbot.logging_utils import (
     create_request_id,
     log_chat_event
@@ -14,8 +18,20 @@ from app.chatbot.policy import (
 UNSUPPORTED_MESSAGE = (
     "I can help with read-only Tally financial queries such as "
     "receivables, payables, pending invoices, revenue, expenses, "
-    "profit or loss, Trial Balance, and Balance Sheet."
+    "profit or loss, Trial Balance, Balance Sheet, overdue and aging "
+    "analysis, top outstanding bills, and financial period comparisons."
 )
+
+
+DATE_AWARE_TOOLS = {
+    "get_revenue",
+    "get_expenses",
+    "get_net_profit",
+    "get_profit_loss",
+    "get_financial_summary",
+}
+
+COMPARISON_TOOL = "get_period_comparison"
 
 
 async def process_chat_message(
@@ -185,6 +201,57 @@ async def process_chat_message(
             "data": None
         }
 
+    # Resolve dates for standard date-aware tools.
+    if tool_name in DATE_AWARE_TOOLS:
+        resolved_range = resolve_date_range(
+            cleaned_message
+        )
+
+        if resolved_range:
+            arguments["from_date"] = (
+                resolved_range.from_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+            arguments["to_date"] = (
+                resolved_range.to_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+    # Resolve both date periods for comparison queries.
+    if tool_name == COMPARISON_TOOL:
+        comparison = resolve_comparison_ranges(
+            cleaned_message
+        )
+
+        if comparison:
+            arguments["first_from_date"] = (
+                comparison.first_period.from_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+            arguments["first_to_date"] = (
+                comparison.first_period.to_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+            arguments["second_from_date"] = (
+                comparison.second_period.from_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+            arguments["second_to_date"] = (
+                comparison.second_period.to_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+    # Everything below this point applies to all tools.
     log_chat_event(
         request_id=request_id,
         event="tool_selected",

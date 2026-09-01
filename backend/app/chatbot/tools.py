@@ -138,7 +138,101 @@ async def _load_financial_summary(
         pending_invoices=pending_invoices
     )
 
+def _build_aging_summary(
+    bills: list[dict],
+    minimum_days: int | None = None
+) -> dict:
+    overdue_bills = [
+        bill
+        for bill in bills
+        if bill.get("overdue_days", 0) > 0
+    ]
 
+    if minimum_days is not None:
+        minimum_days = max(
+            1,
+            min(int(minimum_days), 3650)
+        )
+
+        overdue_bills = [
+            bill
+            for bill in overdue_bills
+            if bill.get("overdue_days", 0) >= minimum_days
+        ]
+
+    overdue_bills = sorted(
+        overdue_bills,
+        key=lambda bill: (
+            bill.get("overdue_days", 0),
+            bill.get("outstanding_amount", 0.0)
+        ),
+        reverse=True
+    )
+
+    buckets = {
+        "1_30": {
+            "count": 0,
+            "amount": 0.0
+        },
+        "31_60": {
+            "count": 0,
+            "amount": 0.0
+        },
+        "61_90": {
+            "count": 0,
+            "amount": 0.0
+        },
+        "91_plus": {
+            "count": 0,
+            "amount": 0.0
+        }
+    }
+
+    for bill in overdue_bills:
+        days = bill.get(
+            "overdue_days",
+            0
+        )
+
+        amount = bill.get(
+            "outstanding_amount",
+            0.0
+        )
+
+        if days <= 30:
+            bucket = "1_30"
+        elif days <= 60:
+            bucket = "31_60"
+        elif days <= 90:
+            bucket = "61_90"
+        else:
+            bucket = "91_plus"
+
+        buckets[bucket]["count"] += 1
+        buckets[bucket]["amount"] += amount
+
+    for bucket in buckets.values():
+        bucket["amount"] = round(
+            bucket["amount"],
+            2
+        )
+
+    total = sum(
+        bill.get(
+            "outstanding_amount",
+            0.0
+        )
+        for bill in overdue_bills
+    )
+
+    return {
+        "minimum_days": minimum_days,
+        "total_overdue": round(total, 2),
+        "count": len(overdue_bills),
+        "buckets": buckets,
+        "bills": overdue_bills
+    }
+    
 async def get_receivables_tool(
     company_name: str | None = None
 ) -> dict:
@@ -605,5 +699,319 @@ async def get_outstanding_summary_tool(
         "payable_count": payables.get(
             "count",
             0
+        )
+    })
+
+
+async def get_top_receivables_tool(
+    limit: int = 5,
+    company_name: str | None = None
+) -> dict:
+    receivables = await _load_receivables(
+        company_name=company_name
+    )
+
+    bills = receivables.get(
+        "bills",
+        []
+    )
+
+    if not bills:
+        return _no_data(
+            "No outstanding receivables were found in Tally."
+        )
+
+    limit = max(
+        1,
+        min(int(limit or 5), 20)
+    )
+
+    sorted_bills = sorted(
+        bills,
+        key=lambda bill: bill.get(
+            "outstanding_amount",
+            0.0
+        ),
+        reverse=True
+    )
+
+    top_bills = sorted_bills[:limit]
+
+    return _success({
+        "requested_limit": limit,
+        "count": len(top_bills),
+        "bills": top_bills
+    })
+
+
+async def get_top_payables_tool(
+    limit: int = 5,
+    company_name: str | None = None
+) -> dict:
+    payables = await _load_payables(
+        company_name=company_name
+    )
+
+    bills = payables.get(
+        "bills",
+        []
+    )
+
+    if not bills:
+        return _no_data(
+            "No outstanding payables were found in Tally."
+        )
+
+    limit = max(
+        1,
+        min(int(limit or 5), 20)
+    )
+
+    sorted_bills = sorted(
+        bills,
+        key=lambda bill: bill.get(
+            "outstanding_amount",
+            0.0
+        ),
+        reverse=True
+    )
+
+    top_bills = sorted_bills[:limit]
+
+    return _success({
+        "requested_limit": limit,
+        "count": len(top_bills),
+        "bills": top_bills
+    })
+    
+    
+async def get_aged_receivables_tool(
+    minimum_days: int | None = None,
+    company_name: str | None = None
+) -> dict:
+    receivables = await _load_receivables(
+        company_name=company_name
+    )
+
+    bills = receivables.get(
+        "bills",
+        []
+    )
+
+    aging = _build_aging_summary(
+        bills=bills,
+        minimum_days=minimum_days
+    )
+
+    return _success(aging)
+
+
+async def get_aged_payables_tool(
+    minimum_days: int | None = None,
+    company_name: str | None = None
+) -> dict:
+    payables = await _load_payables(
+        company_name=company_name
+    )
+
+    bills = payables.get(
+        "bills",
+        []
+    )
+
+    aging = _build_aging_summary(
+        bills=bills,
+        minimum_days=minimum_days
+    )
+
+    return _success(aging)
+
+async def get_period_comparison_tool(
+    metric: str,
+    first_from_date: date,
+    first_to_date: date,
+    second_from_date: date,
+    second_to_date: date,
+    company_name: str | None = None
+) -> dict:
+    allowed_metrics = {
+        "revenue",
+        "expenses",
+        "net_profit"
+    }
+
+    normalized_metric = metric.strip().lower()
+
+    if normalized_metric not in allowed_metrics:
+        return {
+            "success": False,
+            "source": "tally",
+            "message": "Unsupported comparison metric.",
+            "data": None
+        }
+
+    first_summary = await _load_financial_summary(
+        company_name=company_name,
+        from_date=first_from_date,
+        to_date=first_to_date
+    )
+
+    second_summary = await _load_financial_summary(
+        company_name=company_name,
+        from_date=second_from_date,
+        to_date=second_to_date
+    )
+
+    first_value = float(
+        first_summary.get(
+            normalized_metric,
+            0.0
+        )
+    )
+
+    second_value = float(
+        second_summary.get(
+            normalized_metric,
+            0.0
+        )
+    )
+
+    difference = first_value - second_value
+
+    percentage_change = None
+
+    if second_value != 0:
+        percentage_change = (
+            difference / abs(second_value)
+        ) * 100
+
+    return _success({
+        "metric": normalized_metric,
+        "first_period": {
+            "from_date": first_from_date.isoformat(),
+            "to_date": first_to_date.isoformat(),
+            "value": round(first_value, 2)
+        },
+        "second_period": {
+            "from_date": second_from_date.isoformat(),
+            "to_date": second_to_date.isoformat(),
+            "value": round(second_value, 2)
+        },
+        "difference": round(
+            difference,
+            2
+        ),
+        "percentage_change": (
+            round(
+                percentage_change,
+                2
+            )
+            if percentage_change is not None
+            else None
+        )
+    })
+    
+async def get_financial_summary_tool(
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None
+) -> dict:
+    financial_summary = await _load_financial_summary(
+        company_name=company_name,
+        from_date=from_date,
+        to_date=to_date
+    )
+
+    receivables_result = await get_receivables_tool(
+        company_name=company_name
+    )
+
+    payables_result = await get_payables_tool(
+        company_name=company_name
+    )
+
+    pending_invoices_result = await get_pending_invoices_tool(
+        company_name=company_name
+    )
+
+    receivables_data = (
+        receivables_result.get("data") or {}
+        if receivables_result.get("success")
+        else {}
+    )
+
+    payables_data = (
+        payables_result.get("data") or {}
+        if payables_result.get("success")
+        else {}
+    )
+
+    pending_data = (
+        pending_invoices_result.get("data") or {}
+        if pending_invoices_result.get("success")
+        else {}
+    )
+
+    return _success({
+        "from_date": (
+            from_date.isoformat()
+            if from_date
+            else None
+        ),
+        "to_date": (
+            to_date.isoformat()
+            if to_date
+            else None
+        ),
+        "revenue": round(
+            float(
+                financial_summary.get(
+                    "revenue",
+                    0.0
+                )
+            ),
+            2
+        ),
+        "expenses": round(
+            float(
+                financial_summary.get(
+                    "expenses",
+                    0.0
+                )
+            ),
+            2
+        ),
+        "net_profit": round(
+            float(
+                financial_summary.get(
+                    "net_profit",
+                    0.0
+                )
+            ),
+            2
+        ),
+        "receivables": round(
+            float(
+                receivables_data.get(
+                    "total_receivable",
+                    0.0
+                )
+            ),
+            2
+        ),
+        "payables": round(
+            float(
+                payables_data.get(
+                    "total_payable",
+                    0.0
+                )
+            ),
+            2
+        ),
+        "pending_invoices": int(
+            pending_data.get(
+                "count",
+                0
+            )
         )
     })
