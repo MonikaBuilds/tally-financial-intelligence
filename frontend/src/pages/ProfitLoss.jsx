@@ -4,6 +4,7 @@ import Loader from '../components/common/Loader'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import DataTable from '../components/common/DataTable'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -21,7 +22,10 @@ function ProfitLoss() {
 
   return (
     <>
-      <PageHeader title="Profit & Loss" />
+      <PageHeader
+        title="Profit & Loss"
+        actions={<ExportButtons basePath="/reports/profit-loss/export" filenameBase="profit_and_loss" />}
+      />
 
       <Card>
         <DataTable columns={COLUMNS} rows={response.report} />

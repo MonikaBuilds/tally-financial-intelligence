@@ -5,6 +5,7 @@ import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import DataTable from '../components/common/DataTable'
 import StatusPill from '../components/common/StatusPill'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -29,7 +30,10 @@ function PendingInvoices() {
 
   return (
     <>
-      <PageHeader title="Pending Invoices" />
+      <PageHeader
+        title="Pending Invoices"
+        actions={<ExportButtons basePath="/reports/pending-invoices/export" filenameBase="pending_invoices" />}
+      />
 
       <Card>
         <DataTable columns={COLUMNS} rows={response.data.invoices} />

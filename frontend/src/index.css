@@ -104,6 +104,11 @@ h1, h2, h3 {
 
 .page-header {
   margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .page-header h1 {
@@ -113,6 +118,10 @@ h1, h2, h3 {
 .page-subtitle {
   margin-top: 4px;
   color: var(--text);
+}
+
+.page-header-actions {
+  flex-shrink: 0;
 }
 
 /* Stat cards */
@@ -315,6 +324,79 @@ h1, h2, h3 {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn--outline {
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn--outline:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+/* Export buttons */
+
+.export-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.export-error {
+  color: var(--negative);
+  font-size: 13px;
+}
+
+/* Ledger report controls */
+
+.ledger-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.form-field input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 10px;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text-h);
+  min-width: 220px;
+}
+
+.form-field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.form-field--date input {
+  min-width: 160px;
+}
+
+.selection-error {
+  color: var(--negative);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.ledger-summary-note {
+  margin-bottom: 16px;
 }
 
 /* Chatbot */

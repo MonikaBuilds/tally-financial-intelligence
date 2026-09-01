@@ -3,12 +3,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 
+# ============================================================
+# XML CLEANING
+# ============================================================
+
 def clean_tally_xml(xml_text: str) -> str:
-    """
-    Tally can return a few values that Python's XML parser rejects.
-    We only clean invalid XML characters/prefixes here.
-    Financial values are not modified.
-    """
 
     def clean_numeric_reference(match):
         raw_value = match.group(1)
@@ -31,22 +30,20 @@ def clean_tally_xml(xml_text: str) -> str:
         except ValueError:
             return ""
 
-    # Example from Tally: &#4; Not Applicable
     xml_text = re.sub(
         r"&#(x[0-9A-Fa-f]+|\d+);",
         clean_numeric_reference,
         xml_text
     )
 
-    # Some Tally exports contain UDF: tags without declaring
-    # the UDF namespace. We do not use those fields here.
+    # Tally sometimes returns UDF tags without declaring the namespace.
     xml_text = re.sub(
         r"<(/?)UDF:",
         r"<\1UDF_",
         xml_text
     )
 
-    # Remove raw control characters that are invalid in XML 1.0.
+    # Remove invalid XML 1.0 control characters.
     xml_text = "".join(
         char
         for char in xml_text
@@ -61,6 +58,10 @@ def parse_xml(xml_text: str):
     return ET.fromstring(cleaned_xml)
 
 
+# ============================================================
+# BASIC HELPERS
+# ============================================================
+
 def to_float(value):
     if value is None:
         return 0.0
@@ -70,9 +71,17 @@ def to_float(value):
     if not value:
         return 0.0
 
+    normalized = value.replace(",", "").replace(" ", "")
+
+    upper = normalized.upper()
+
+    if upper.endswith("DR") or upper.endswith("CR"):
+        normalized = normalized[:-2]
+
     try:
-        return float(value)
-    except ValueError:
+        return float(normalized)
+
+    except (TypeError, ValueError):
         return 0.0
 
 
@@ -100,6 +109,10 @@ def format_tally_date(value):
     return value
 
 
+# ============================================================
+# COMPANIES
+# ============================================================
+
 def parse_companies(xml_response: str):
     root = parse_xml(xml_response)
 
@@ -116,6 +129,10 @@ def parse_companies(xml_response: str):
     return companies
 
 
+# ============================================================
+# PROFIT & LOSS
+# ============================================================
+
 def parse_profit_loss(xml_response: str):
     root = parse_xml(xml_response)
 
@@ -123,6 +140,7 @@ def parse_profit_loss(xml_response: str):
     report = []
 
     for index, element in enumerate(elements):
+
         if element.tag != "DSPACCNAME":
             continue
 
@@ -138,6 +156,7 @@ def parse_profit_loss(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "PLAMT"
         ):
+
             amount_block = elements[index + 1]
 
             main_value = amount_block.findtext("BSMAINAMT")
@@ -158,6 +177,10 @@ def parse_profit_loss(xml_response: str):
     return report
 
 
+# ============================================================
+# TRIAL BALANCE
+# ============================================================
+
 def parse_trial_balance(xml_response: str):
     root = parse_xml(xml_response)
 
@@ -165,6 +188,7 @@ def parse_trial_balance(xml_response: str):
     report = []
 
     for index, element in enumerate(elements):
+
         if element.tag != "DSPACCNAME":
             continue
 
@@ -180,6 +204,7 @@ def parse_trial_balance(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "DSPACCINFO"
         ):
+
             info = elements[index + 1]
 
             debit_value = info.findtext(
@@ -205,6 +230,10 @@ def parse_trial_balance(xml_response: str):
     return report
 
 
+# ============================================================
+# BALANCE SHEET
+# ============================================================
+
 def parse_balance_sheet(xml_response: str):
     root = parse_xml(xml_response)
 
@@ -212,6 +241,7 @@ def parse_balance_sheet(xml_response: str):
     report = []
 
     for index, element in enumerate(elements):
+
         if element.tag != "BSNAME":
             continue
 
@@ -228,6 +258,7 @@ def parse_balance_sheet(xml_response: str):
             index + 1 < len(elements)
             and elements[index + 1].tag == "BSAMT"
         ):
+
             amount_block = elements[index + 1]
 
             main_value = amount_block.findtext("BSMAINAMT")
@@ -247,13 +278,21 @@ def parse_balance_sheet(xml_response: str):
     return report
 
 
+# ============================================================
+# BILL ALLOCATIONS
+# ============================================================
+
 def parse_bill_allocations(xml_response: str):
     root = parse_xml(xml_response)
 
     bills = []
 
     for voucher in root.findall(".//VOUCHER"):
-        if voucher.findtext("ISDELETED", "No").strip() == "Yes":
+
+        if voucher.findtext(
+            "ISDELETED",
+            "No"
+        ).strip() == "Yes":
             continue
 
         voucher_type = voucher.findtext(
@@ -283,6 +322,7 @@ def parse_bill_allocations(xml_response: str):
         for ledger_entry in voucher.findall(
             "./ALLLEDGERENTRIES.LIST"
         ):
+
             is_party = ledger_entry.findtext(
                 "ISPARTYLEDGER",
                 "No"
@@ -301,6 +341,7 @@ def parse_bill_allocations(xml_response: str):
             for allocation in ledger_entry.findall(
                 "./BILLALLOCATIONS.LIST"
             ):
+
                 reference = allocation.findtext(
                     "NAME",
                     ""
@@ -331,6 +372,10 @@ def parse_bill_allocations(xml_response: str):
     return bills
 
 
+# ============================================================
+# OUTSTANDING REPORT
+# ============================================================
+
 def parse_outstanding_report(
     xml_response: str,
     report_type: str
@@ -342,6 +387,7 @@ def parse_outstanding_report(
     elements = list(root)
 
     for index, element in enumerate(elements):
+
         if element.tag != "BILLFIXED":
             continue
 
@@ -402,3 +448,544 @@ def parse_outstanding_report(
         })
 
     return bills
+
+
+# ============================================================
+# LEDGER LIST
+# ============================================================
+
+def parse_ledger_list(xml_response: str):
+    root = parse_xml(xml_response)
+
+    ledgers = []
+    seen = set()
+
+    for ledger in root.findall(".//LEDGER"):
+
+        name = ledger.get("NAME") or ledger.findtext("NAME")
+
+        if not name:
+            continue
+
+        name = name.strip()
+
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        ledgers.append({
+            "name": name,
+            "parent": (
+                ledger.findtext("PARENT", "") or ""
+            ).strip(),
+            "opening_balance": to_float(
+                ledger.findtext("OPENINGBALANCE")
+            ),
+            "closing_balance": to_float(
+                ledger.findtext("CLOSINGBALANCE")
+            )
+        })
+
+    ledgers.sort(
+        key=lambda item: item["name"]
+    )
+
+    return ledgers
+
+
+# ============================================================
+# LEDGER HELPERS
+# ============================================================
+
+def _same_ledger_name(
+    left: str | None,
+    right: str | None
+) -> bool:
+
+    left_value = " ".join(
+        (left or "").split()
+    ).casefold()
+
+    right_value = " ".join(
+        (right or "").split()
+    ).casefold()
+
+    return (
+        bool(left_value)
+        and left_value == right_value
+    )
+
+
+def _ledger_entry_nodes(voucher):
+
+    nodes = []
+    seen_object_ids = set()
+
+    for path in (
+        "./ALLLEDGERENTRIES.LIST",
+        "./LEDGERENTRIES.LIST",
+        ".//ALLLEDGERENTRIES.LIST",
+        ".//LEDGERENTRIES.LIST",
+    ):
+
+        for node in voucher.findall(path):
+
+            marker = id(node)
+
+            if marker not in seen_object_ids:
+                nodes.append(node)
+                seen_object_ids.add(marker)
+
+    # Remove exact repeated ledger-entry blocks inside one voucher.
+    def node_signature(node):
+        return (
+            node.findtext(
+                "LEDGERNAME",
+                ""
+            ).strip(),
+
+            node.findtext(
+                "AMOUNT",
+                ""
+            ).strip(),
+
+            node.findtext(
+                "ISDEEMEDPOSITIVE",
+                ""
+            ).strip().casefold()
+        )
+
+    signatures = [
+        node_signature(node)
+        for node in nodes
+    ]
+
+    if (
+        len(signatures) > 1
+        and len(signatures) % 2 == 0
+        and signatures[
+            :len(signatures) // 2
+        ]
+        ==
+        signatures[
+            len(signatures) // 2:
+        ]
+    ):
+
+        nodes = nodes[
+            :len(nodes) // 2
+        ]
+
+    return nodes
+
+
+def _inventory_entry_nodes(voucher):
+
+    nodes = []
+    seen = set()
+
+    for path in (
+        "./ALLINVENTORYENTRIES.LIST",
+        "./INVENTORYENTRIES.LIST",
+        ".//ALLINVENTORYENTRIES.LIST",
+        ".//INVENTORYENTRIES.LIST",
+    ):
+
+        for node in voucher.findall(path):
+
+            marker = id(node)
+
+            if marker not in seen:
+                nodes.append(node)
+                seen.add(marker)
+
+    return nodes
+
+
+# ============================================================
+# LEDGER REPORT
+# ============================================================
+
+def parse_ledger_report(
+    xml_response: str,
+    ledger_name: str,
+    opening_balance: float = 0.0,
+    closing_balance: float | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None
+):
+
+    root = parse_xml(xml_response)
+
+    target_ledger = " ".join(
+        ledger_name.split()
+    )
+
+    entries = []
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # This set removes duplicate FINAL ledger rows.
+    #
+    # Tally can return the same voucher multiple times with
+    # slightly different XML structures/signatures.
+    # --------------------------------------------------------
+
+    seen_rows = set()
+
+    for voucher in root.findall(".//VOUCHER"):
+
+        # ----------------------------------------------------
+        # Ignore deleted vouchers
+        # ----------------------------------------------------
+
+        if voucher.findtext(
+            "ISDELETED",
+            "No"
+        ).strip().casefold() == "yes":
+            continue
+
+        voucher_date = format_tally_date(
+            voucher.findtext("DATE")
+        )
+
+        voucher_type = voucher.findtext(
+            "VOUCHERTYPENAME",
+            ""
+        ).strip()
+
+        voucher_number = voucher.findtext(
+            "VOUCHERNUMBER",
+            ""
+        ).strip()
+
+        narration = voucher.findtext(
+            "NARRATION",
+            ""
+        ).strip()
+
+        party_name = voucher.findtext(
+            "PARTYLEDGERNAME",
+            ""
+        ).strip()
+
+        ledger_entry_nodes = _ledger_entry_nodes(
+            voucher
+        )
+
+        # ----------------------------------------------------
+        # Find contra ledger names
+        # ----------------------------------------------------
+
+        contra_names = []
+
+        for node in ledger_entry_nodes:
+
+            name = node.findtext(
+                "LEDGERNAME",
+                ""
+            ).strip()
+
+            if not name:
+                continue
+
+            if _same_ledger_name(
+                name,
+                target_ledger
+            ):
+                continue
+
+            contra_names.append(name)
+
+        # Preserve order but remove duplicates.
+        contra_names = list(
+            dict.fromkeys(contra_names)
+        )
+
+        contra_label = ", ".join(
+            contra_names
+        )
+
+        # ----------------------------------------------------
+        # Inventory fallback
+        # ----------------------------------------------------
+
+        if not contra_label:
+
+            stock_item_names = []
+
+            for node in _inventory_entry_nodes(
+                voucher
+            ):
+
+                stock_name = node.findtext(
+                    "STOCKITEMNAME",
+                    ""
+                ).strip()
+
+                if stock_name:
+                    stock_item_names.append(
+                        stock_name
+                    )
+
+            stock_item_names = list(
+                dict.fromkeys(
+                    stock_item_names
+                )
+            )
+
+            if stock_item_names:
+
+                contra_label = (
+                    "Stock Item: "
+                    +
+                    ", ".join(
+                        stock_item_names
+                    )
+                )
+
+        # ----------------------------------------------------
+        # Process target ledger entries
+        # ----------------------------------------------------
+
+        for ledger_entry in ledger_entry_nodes:
+
+            entry_ledger = ledger_entry.findtext(
+                "LEDGERNAME",
+                ""
+            ).strip()
+
+            if not _same_ledger_name(
+                entry_ledger,
+                target_ledger
+            ):
+                continue
+
+            amount_text = ledger_entry.findtext(
+                "AMOUNT"
+            )
+
+            amount = to_float(
+                amount_text
+            )
+
+            is_deemed_positive = (
+                ledger_entry.findtext(
+                    "ISDEEMEDPOSITIVE",
+                    ""
+                )
+                .strip()
+                .casefold()
+            )
+
+            # ------------------------------------------------
+            # Determine debit / credit
+            # ------------------------------------------------
+
+            if is_deemed_positive == "yes":
+
+                debit = abs(amount)
+                credit = 0.0
+
+            elif is_deemed_positive == "no":
+
+                debit = 0.0
+                credit = abs(amount)
+
+            else:
+
+                if amount > 0:
+
+                    debit = amount
+                    credit = 0.0
+
+                elif amount < 0:
+
+                    debit = 0.0
+                    credit = abs(amount)
+
+                else:
+
+                    debit = 0.0
+                    credit = 0.0
+
+            particulars = (
+                contra_label
+                or party_name
+                or narration
+                or entry_ledger
+            )
+
+            # ------------------------------------------------
+            # FINAL ROW DEDUPLICATION
+            #
+            # This is the important fix.
+            # ------------------------------------------------
+
+            row_key = (
+                voucher_date or "",
+                voucher_type.casefold(),
+                voucher_number,
+                entry_ledger.casefold(),
+                particulars.casefold(),
+                round(debit, 2),
+                round(credit, 2),
+            )
+
+            if row_key in seen_rows:
+                continue
+
+            seen_rows.add(row_key)
+
+            entries.append({
+                "date": voucher_date,
+                "voucher_type": voucher_type,
+                "voucher_number": voucher_number,
+                "particulars": particulars,
+                "narration": narration,
+                "debit": round(debit, 2),
+                "credit": round(credit, 2),
+            })
+
+    # ========================================================
+    # SORT TRANSACTIONS
+    # ========================================================
+
+    entries.sort(
+        key=lambda row: (
+            row["date"] or "",
+            row["voucher_type"] or "",
+            row["voucher_number"] or ""
+        )
+    )
+
+    # ========================================================
+    # RUNNING BALANCE
+    # ========================================================
+
+    book_opening = round(
+        opening_balance,
+        2
+    )
+
+    running_balance = book_opening
+
+    for entry in entries:
+
+        running_balance += (
+            entry["debit"]
+            -
+            entry["credit"]
+        )
+
+        entry["running_balance"] = round(
+            running_balance,
+            2
+        )
+
+    # ========================================================
+    # DISPLAY OPENING BALANCE
+    # ========================================================
+
+    display_opening = book_opening
+
+    if from_date:
+
+        preceding_entries = [
+            entry
+            for entry in entries
+            if (
+                entry["date"]
+                and entry["date"] < from_date
+            )
+        ]
+
+        if preceding_entries:
+
+            display_opening = (
+                preceding_entries[-1]
+                ["running_balance"]
+            )
+
+    # ========================================================
+    # DATE FILTER
+    # ========================================================
+
+    filtered_entries = entries
+
+    if from_date:
+
+        filtered_entries = [
+            entry
+            for entry in filtered_entries
+            if (
+                entry["date"]
+                and entry["date"] >= from_date
+            )
+        ]
+
+    if to_date:
+
+        filtered_entries = [
+            entry
+            for entry in filtered_entries
+            if (
+                entry["date"]
+                and entry["date"] <= to_date
+            )
+        ]
+
+    # ========================================================
+    # CLOSING BALANCE
+    # ========================================================
+
+    if filtered_entries:
+
+        calculated_closing = (
+            filtered_entries[-1]
+            ["running_balance"]
+        )
+
+    else:
+
+        calculated_closing = (
+            display_opening
+        )
+
+    # Only use Tally's closing balance when
+    # there is no date filtering.
+    if (
+        not filtered_entries
+        and closing_balance is not None
+        and not from_date
+        and not to_date
+    ):
+
+        final_closing = round(
+            closing_balance,
+            2
+        )
+
+    else:
+
+        final_closing = round(
+            calculated_closing,
+            2
+        )
+
+    # ========================================================
+    # RETURN
+    # ========================================================
+
+    return {
+        "ledger_name": target_ledger,
+        "opening_balance": round(
+            display_opening,
+            2
+        ),
+        "closing_balance": final_closing,
+        "entries": filtered_entries,
+    }

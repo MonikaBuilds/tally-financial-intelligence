@@ -5,6 +5,7 @@ import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import StatCard from '../components/common/StatCard'
 import DataTable from '../components/common/DataTable'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -30,7 +31,10 @@ function Payables() {
 
   return (
     <>
-      <PageHeader title="Payables" />
+      <PageHeader
+        title="Payables"
+        actions={<ExportButtons basePath="/reports/payables/export" filenameBase="payables" />}
+      />
 
       <div className="stat-grid">
         <StatCard label="Total Payable" value={total_payable} />

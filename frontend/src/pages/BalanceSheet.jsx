@@ -4,6 +4,7 @@ import Loader from '../components/common/Loader'
 import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import DataTable from '../components/common/DataTable'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -20,7 +21,10 @@ function BalanceSheet() {
 
   return (
     <>
-      <PageHeader title="Balance Sheet" />
+      <PageHeader
+        title="Balance Sheet"
+        actions={<ExportButtons basePath="/reports/balance-sheet/export" filenameBase="balance_sheet" />}
+      />
 
       <Card>
         <DataTable columns={COLUMNS} rows={response.report} />

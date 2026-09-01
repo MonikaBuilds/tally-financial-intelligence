@@ -5,6 +5,7 @@ import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import StatCard from '../components/common/StatCard'
 import DataTable from '../components/common/DataTable'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -30,7 +31,10 @@ function Receivables() {
 
   return (
     <>
-      <PageHeader title="Receivables" />
+      <PageHeader
+        title="Receivables"
+        actions={<ExportButtons basePath="/reports/receivables/export" filenameBase="receivables" />}
+      />
 
       <div className="stat-grid">
         <StatCard label="Total Receivable" value={total_receivable} />

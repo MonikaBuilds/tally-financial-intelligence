@@ -741,6 +741,59 @@ def format_tool_response(
 
         return "\n".join(lines)
 
+        
+    if tool_name == "get_ledger_report":
+        ledger_name = data.get(
+            "ledger_name",
+            "The requested ledger"
+        )
+
+        opening_balance = data.get(
+            "opening_balance",
+            0
+        )
+
+        closing_balance = data.get(
+            "closing_balance",
+            0
+        )
+
+        entry_count = data.get(
+            "entry_count",
+            0
+        )
+
+        total_debit = data.get(
+            "total_debit",
+            0
+        )
+
+        total_credit = data.get(
+            "total_credit",
+            0
+        )
+
+        def _with_suffix(value):
+            suffix = "Cr" if value < 0 else "Dr"
+            return f"{format_indian_currency(abs(value))} {suffix}"
+
+        if entry_count == 0:
+            return (
+                f"{ledger_name} has an opening balance of "
+                f"{_with_suffix(opening_balance)} and no "
+                f"transactions in the selected period, so the "
+                f"closing balance is {_with_suffix(closing_balance)}."
+            )
+
+        return (
+            f"{ledger_name}: opening balance "
+            f"{_with_suffix(opening_balance)}, "
+            f"{entry_count} entry(ies) totalling "
+            f"{format_indian_currency(total_debit)} debit and "
+            f"{format_indian_currency(total_credit)} credit, "
+            f"closing balance {_with_suffix(closing_balance)}."
+        )
+
     return (
         "The requested financial data was "
         "retrieved successfully from Tally."
