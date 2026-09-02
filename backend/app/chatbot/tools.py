@@ -1117,3 +1117,256 @@ async def get_financial_summary_tool(
             )
         )
     })
+    
+async def _load_ledgers_by_parent(
+    parent_names: set[str],
+    company_name: str | None = None
+) -> list[dict]:
+    """
+    Load ledgers from Tally whose parent group matches
+    one of the supplied accounting groups.
+    """
+
+    ledgers = await fetch_ledger_list(
+        company_name=company_name
+    )
+
+    normalized_parents = {
+        parent.strip().casefold()
+        for parent in parent_names
+    }
+
+    return [
+        ledger
+        for ledger in ledgers
+        if (
+            ledger.get("parent", "")
+            .strip()
+            .casefold()
+            in normalized_parents
+        )
+    ]
+
+
+async def get_cash_balance_tool(
+    ledger_name: str | None = None,
+    company_name: str | None = None
+) -> dict:
+    """
+    Return current Cash-in-Hand ledger balances from Tally.
+    """
+
+    cash_ledgers = await _load_ledgers_by_parent(
+        parent_names={
+            "Cash-in-Hand",
+        },
+        company_name=company_name
+    )
+
+    if not cash_ledgers:
+        return _no_data(
+            "No Cash-in-Hand ledger was found in Tally."
+        )
+
+    # If the user asked for one particular cash ledger,
+    # resolve it safely against actual Tally ledger names.
+    if ledger_name and ledger_name.strip():
+        available_names = [
+            ledger["name"]
+            for ledger in cash_ledgers
+            if ledger.get("name")
+        ]
+
+        resolution = resolve_name(
+            requested_name=ledger_name,
+            available_names=available_names
+        )
+
+        if resolution.status == "not_found":
+            return _no_data(
+                "No matching cash ledger was found in Tally."
+            )
+
+        if resolution.status == "ambiguous":
+            return {
+                "success": False,
+                "source": "tally",
+                "message": (
+                    "Multiple matching cash ledgers were found. "
+                    "Please provide a more specific ledger name."
+                ),
+                "data": {
+                    "matches": resolution.matches or []
+                }
+            }
+
+        if resolution.status != "resolved":
+            return _no_data(
+                "Unable to resolve the requested cash ledger."
+            )
+
+        resolved_name = resolution.value
+
+        selected_ledger = next(
+            (
+                ledger
+                for ledger in cash_ledgers
+                if ledger.get("name") == resolved_name
+            ),
+            None
+        )
+
+        if selected_ledger is None:
+            return _no_data(
+                "No matching cash ledger was found in Tally."
+            )
+
+        return _success({
+            "ledger_name": selected_ledger.get("name"),
+            "closing_balance": round(
+                float(
+                    selected_ledger.get(
+                        "closing_balance",
+                        0.0
+                    )
+                ),
+                2
+            ),
+            "ledger_count": 1,
+            "ledgers": [
+                selected_ledger
+            ]
+        })
+
+    total_balance = sum(
+        float(
+            ledger.get(
+                "closing_balance",
+                0.0
+            )
+        )
+        for ledger in cash_ledgers
+    )
+
+    return _success({
+        "total_balance": round(
+            total_balance,
+            2
+        ),
+        "ledger_count": len(
+            cash_ledgers
+        ),
+        "ledgers": cash_ledgers
+    })
+
+
+async def get_bank_balance_tool(
+    ledger_name: str | None = None,
+    company_name: str | None = None
+) -> dict:
+    """
+    Return current bank ledger balances from Tally.
+    """
+
+    bank_ledgers = await _load_ledgers_by_parent(
+        parent_names={
+            "Bank Accounts",
+            "Bank OD A/c",
+        },
+        company_name=company_name
+    )
+
+    if not bank_ledgers:
+        return _no_data(
+            "No bank ledger was found in Tally."
+        )
+
+    # A specific bank/account was requested.
+    if ledger_name and ledger_name.strip():
+        available_names = [
+            ledger["name"]
+            for ledger in bank_ledgers
+            if ledger.get("name")
+        ]
+
+        resolution = resolve_name(
+            requested_name=ledger_name,
+            available_names=available_names
+        )
+
+        if resolution.status == "not_found":
+            return _no_data(
+                "No matching bank ledger was found in Tally."
+            )
+
+        if resolution.status == "ambiguous":
+            return {
+                "success": False,
+                "source": "tally",
+                "message": (
+                    "Multiple matching bank ledgers were found. "
+                    "Please provide a more specific bank or account name."
+                ),
+                "data": {
+                    "matches": resolution.matches or []
+                }
+            }
+
+        if resolution.status != "resolved":
+            return _no_data(
+                "Unable to resolve the requested bank ledger."
+            )
+
+        resolved_name = resolution.value
+
+        selected_ledger = next(
+            (
+                ledger
+                for ledger in bank_ledgers
+                if ledger.get("name") == resolved_name
+            ),
+            None
+        )
+
+        if selected_ledger is None:
+            return _no_data(
+                "No matching bank ledger was found in Tally."
+            )
+
+        return _success({
+            "ledger_name": selected_ledger.get("name"),
+            "closing_balance": round(
+                float(
+                    selected_ledger.get(
+                        "closing_balance",
+                        0.0
+                    )
+                ),
+                2
+            ),
+            "ledger_count": 1,
+            "ledgers": [
+                selected_ledger
+            ]
+        })
+
+    total_balance = sum(
+        float(
+            ledger.get(
+                "closing_balance",
+                0.0
+            )
+        )
+        for ledger in bank_ledgers
+    )
+
+    return _success({
+        "total_balance": round(
+            total_balance,
+            2
+        ),
+        "ledger_count": len(
+            bank_ledgers
+        ),
+        "ledgers": bank_ledgers
+    })
