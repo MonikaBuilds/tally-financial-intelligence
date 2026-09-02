@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from datetime import date, datetime
 from typing import Any
@@ -8,6 +9,22 @@ from app.chatbot.tool_registry import TOOL_FUNCTIONS
 
 CHATBOT_TOOL_TIMEOUT = 10.0
 
+CHATBOT_MAX_CONCURRENT_TOOLS = max(
+    1,
+    int(
+        os.getenv(
+            "CHATBOT_MAX_CONCURRENT_TOOLS",
+            "8",
+        )
+    ),
+)
+
+CHATBOT_QUEUE_TIMEOUT = 2.0
+
+_tool_semaphore = asyncio.Semaphore(
+    CHATBOT_MAX_CONCURRENT_TOOLS
+)
+
 
 DATE_ARGUMENTS = {
     "from_date",
@@ -15,13 +32,13 @@ DATE_ARGUMENTS = {
     "first_from_date",
     "first_to_date",
     "second_from_date",
-    "second_to_date"
+    "second_to_date",
 }
 
 
 def _parse_date(
     value: Any,
-    argument_name: str
+    argument_name: str,
 ) -> date | None:
     if value is None:
         return None
@@ -38,7 +55,7 @@ def _parse_date(
     try:
         return datetime.strptime(
             value.strip(),
-            "%d-%m-%Y"
+            "%d-%m-%Y",
         ).date()
 
     except ValueError as exc:
@@ -49,7 +66,7 @@ def _parse_date(
 
 
 def _prepare_arguments(
-    arguments: dict[str, Any] | None
+    arguments: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if arguments is None:
         return {}
@@ -65,12 +82,16 @@ def _prepare_arguments(
         if argument_name in prepared:
             prepared[argument_name] = _parse_date(
                 prepared[argument_name],
-                argument_name
+                argument_name,
             )
 
-    from_date = prepared.get("from_date")
-    to_date = prepared.get("to_date")
-    
+    from_date = prepared.get(
+        "from_date"
+    )
+    to_date = prepared.get(
+        "to_date"
+    )
+
     first_from_date = prepared.get(
         "first_from_date"
     )
@@ -84,7 +105,8 @@ def _prepare_arguments(
         and first_from_date > first_to_date
     ):
         raise ValueError(
-            "first_from_date cannot be later than first_to_date."
+            "first_from_date cannot be later "
+            "than first_to_date."
         )
 
     second_from_date = prepared.get(
@@ -100,7 +122,8 @@ def _prepare_arguments(
         and second_from_date > second_to_date
     ):
         raise ValueError(
-            "second_from_date cannot be later than second_to_date."
+            "second_from_date cannot be later "
+            "than second_to_date."
         )
 
     if (
@@ -109,7 +132,8 @@ def _prepare_arguments(
         and from_date > to_date
     ):
         raise ValueError(
-            "from_date cannot be later than to_date."
+            "from_date cannot be later "
+            "than to_date."
         )
 
     company_name = prepared.get(
@@ -117,12 +141,17 @@ def _prepare_arguments(
     )
 
     if company_name is not None:
-        if not isinstance(company_name, str):
+        if not isinstance(
+            company_name,
+            str,
+        ):
             raise ValueError(
                 "company_name must be a string."
             )
 
-        company_name = company_name.strip()
+        company_name = (
+            company_name.strip()
+        )
 
         prepared["company_name"] = (
             company_name
@@ -135,36 +164,66 @@ def _prepare_arguments(
 
 async def execute_tool(
     tool_name: str,
-    arguments: dict[str, Any] | None = None
+    arguments: dict[str, Any] | None = None,
 ) -> dict:
     if tool_name not in TOOL_FUNCTIONS:
         return {
             "success": False,
             "source": None,
             "message": (
-                "The requested operation is not available "
-                "to this read-only assistant."
+                "The requested operation is not "
+                "available to this read-only "
+                "assistant."
             ),
-            "data": None
+            "data": None,
         }
 
     try:
-        prepared_arguments = _prepare_arguments(
-            arguments
+        prepared_arguments = (
+            _prepare_arguments(
+                arguments
+            )
         )
 
-        tool_function = TOOL_FUNCTIONS[
-            tool_name
-        ]
-
-        result = await asyncio.wait_for(
-            tool_function(
-                **prepared_arguments
-            ),
-            timeout=CHATBOT_TOOL_TIMEOUT
+        tool_function = (
+            TOOL_FUNCTIONS[
+                tool_name
+            ]
         )
 
-        if not isinstance(result, dict):
+        try:
+            await asyncio.wait_for(
+                _tool_semaphore.acquire(),
+                timeout=CHATBOT_QUEUE_TIMEOUT,
+            )
+
+        except asyncio.TimeoutError:
+            return {
+                "success": False,
+                "source": None,
+                "message": (
+                    "The chatbot is handling many "
+                    "requests right now. Please try "
+                    "again shortly."
+                ),
+                "data": None,
+            }
+
+        try:
+            result = await asyncio.wait_for(
+                tool_function(
+                    **prepared_arguments
+                ),
+                timeout=CHATBOT_TOOL_TIMEOUT,
+            )
+
+        finally:
+            _tool_semaphore.release()
+
+        if not isinstance(
+            result,
+            dict,
+        ):
             return {
                 "success": False,
                 "source": None,
@@ -172,7 +231,7 @@ async def execute_tool(
                     "The financial tool returned "
                     "an invalid response."
                 ),
-                "data": None
+                "data": None,
             }
 
         return result
@@ -182,10 +241,10 @@ async def execute_tool(
             "success": False,
             "source": "tally",
             "message": (
-                "Tally is taking too long to respond. "
-                "Please try again shortly."
+                "Tally is taking too long to "
+                "respond. Please try again shortly."
             ),
-            "data": None
+            "data": None,
         }
 
     except TypeError:
@@ -196,7 +255,7 @@ async def execute_tool(
                 "Invalid arguments were supplied "
                 "for the requested financial tool."
             ),
-            "data": None
+            "data": None,
         }
 
     except ValueError as exc:
@@ -204,7 +263,7 @@ async def execute_tool(
             "success": False,
             "source": None,
             "message": str(exc),
-            "data": None
+            "data": None,
         }
 
     except Exception:
@@ -215,5 +274,5 @@ async def execute_tool(
                 "Unable to retrieve the requested "
                 "financial data from Tally right now."
             ),
-            "data": None
+            "data": None,
         }

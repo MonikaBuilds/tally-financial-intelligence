@@ -20,7 +20,9 @@ from app.chatbot.tools import (
     get_top_receivables_tool,
     get_top_payables_tool,
     get_financial_summary_tool,
-    get_ledger_report_tool
+    get_ledger_report_tool,
+    get_cash_balance_tool,
+    get_bank_balance_tool
 )
 
 
@@ -51,6 +53,8 @@ TOOL_FUNCTIONS = {
     "get_top_payables": get_top_payables_tool,
     "get_financial_summary": get_financial_summary_tool,
     "get_ledger_report": get_ledger_report_tool,
+    "get_cash_balance": get_cash_balance_tool,
+    "get_bank_balance": get_bank_balance_tool,
 }
 
 
@@ -652,5 +656,64 @@ TOOL_DEFINITIONS = [
             "second_to_date"
         ]
     }
-}
+},
+
+{
+    "type": "function",
+    "name": "get_cash_balance",
+    "description": (
+        "Get the current Cash-in-Hand balance from Tally. "
+        "Use when the user asks for cash balance, current cash, "
+        "cash in hand, available cash, petty cash, or the balance "
+        "of a specific cash ledger."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ledger_name": {
+                "type": "string",
+                "description": (
+                    "Optional specific cash ledger name mentioned "
+                    "by the user, such as Cash or Petty Cash."
+                )
+            },
+            "company_name": {
+                "type": "string",
+                "description": (
+                    "Optional Tally company name."
+                )
+            }
+        }
+    }
+},
+{
+    "type": "function",
+    "name": "get_bank_balance",
+    "description": (
+        "Get current bank account balances from Tally. "
+        "Use when the user asks for bank balance, total bank "
+        "balance, available money in banks, all bank balances, "
+        "or the balance of a specific bank account."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ledger_name": {
+                "type": "string",
+                "description": (
+                    "Optional specific bank ledger or account "
+                    "name mentioned by the user."
+                )
+            },
+            "company_name": {
+                "type": "string",
+                "description": (
+                    "Optional Tally company name."
+                )
+            }
+        }
+    }
+},
+
+
 ]

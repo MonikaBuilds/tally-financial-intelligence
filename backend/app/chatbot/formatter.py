@@ -793,8 +793,202 @@ def format_tool_response(
             f"{format_indian_currency(total_credit)} credit, "
             f"closing balance {_with_suffix(closing_balance)}."
         )
+        
+    if tool_name == "get_cash_balance":
+        ledger_name = data.get(
+            "ledger_name"
+        )
+
+        if ledger_name:
+            balance = data.get(
+                "closing_balance",
+                0
+            )
+
+            return (
+                f"The current balance of {ledger_name} is "
+                f"{format_indian_currency(balance)}."
+            )
+
+        total_balance = data.get(
+            "total_balance",
+            0
+        )
+
+        ledger_count = data.get(
+            "ledger_count",
+            0
+        )
+
+        ledgers = data.get(
+            "ledgers",
+            []
+        )
+
+        if ledger_count == 1 and ledgers:
+            ledger = ledgers[0]
+
+            return (
+                f"Your current cash balance is "
+                f"{format_indian_currency(
+                    ledger.get('closing_balance', 0)
+                )}."
+            )
+
+        lines = [
+            (
+                f"Your total cash balance is "
+                f"{format_indian_currency(total_balance)} "
+                f"across {ledger_count} cash ledger(s)."
+            )
+        ]
+
+        for ledger in ledgers:
+            name = ledger.get(
+                "name",
+                "Cash"
+            )
+
+            balance = ledger.get(
+                "closing_balance",
+                0
+            )
+
+            lines.append(
+                f"{name}: "
+                f"{format_indian_currency(balance)}"
+            )
+
+        return "\n".join(lines)
+
+    if tool_name == "get_cash_balance":
+        ledger_name = data.get(
+            "ledger_name"
+        )
+
+        if ledger_name:
+            balance = data.get(
+                "closing_balance",
+                0
+            )
+
+            return (
+                f"The current balance of {ledger_name} is "
+                f"{format_indian_currency(balance)}."
+            )
+
+        total_balance = data.get(
+            "total_balance",
+            0
+        )
+
+        ledger_count = data.get(
+            "ledger_count",
+            0
+        )
+
+        ledgers = data.get(
+            "ledgers",
+            []
+        )
+
+        if ledger_count == 1 and ledgers:
+            ledger = ledgers[0]
+
+            return (
+                f"Your current cash balance is "
+                f"{format_indian_currency(
+                    ledger.get('closing_balance', 0)
+                )}."
+            )
+
+        lines = [
+            (
+                f"Your total cash balance is "
+                f"{format_indian_currency(total_balance)} "
+                f"across {ledger_count} cash ledger(s)."
+            )
+        ]
+
+        for ledger in ledgers:
+            name = ledger.get(
+                "name",
+                "Cash"
+            )
+
+            balance = ledger.get(
+                "closing_balance",
+                0
+            )
+
+            lines.append(
+                f"{name}: "
+                f"{format_indian_currency(balance)}"
+            )
+
+        return "\n".join(lines)
+
+
+    if tool_name == "get_bank_balance":
+        ledger_name = data.get(
+            "ledger_name"
+        )
+
+        if ledger_name:
+            balance = data.get(
+                "closing_balance",
+                0
+            )
+
+            return (
+                f"The current balance of {ledger_name} is "
+                f"{format_indian_currency(balance)}."
+            )
+
+        total_balance = data.get(
+            "total_balance",
+            0
+        )
+
+        ledger_count = data.get(
+            "ledger_count",
+            0
+        )
+
+        ledgers = data.get(
+            "ledgers",
+            []
+        )
+
+        lines = [
+            (
+                f"Your total bank balance is "
+                f"{format_indian_currency(total_balance)} "
+                f"across {ledger_count} bank account(s)."
+            )
+        ]
+
+        for ledger in ledgers:
+            name = ledger.get(
+                "name",
+                "Bank account"
+            )
+
+            balance = ledger.get(
+                "closing_balance",
+                0
+            )
+
+            lines.append(
+                f"{name}: "
+                f"{format_indian_currency(balance)}"
+            )
+
+        return "\n".join(lines)
+
 
     return (
         "The requested financial data was "
         "retrieved successfully from Tally."
     )
+    

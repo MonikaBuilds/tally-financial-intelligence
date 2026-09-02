@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,12 +10,27 @@ from app.api.dashboard import router as dashboard_router
 from app.api.reports import router as reports_router
 from app.api.chat import router as chat_router
 
+from app.tally.client import TallyClient
+
 
 configure_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await TallyClient.start_shared_client()
+
+    try:
+        yield
+
+    finally:
+        await TallyClient.close_shared_client()
+
+
 app = FastAPI(
     title="Tally Financial Intelligence API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -28,30 +45,33 @@ app.add_middleware(
 app.include_router(
     tally_router,
     prefix="/api/v1/tally",
-    tags=["Tally"]
+    tags=["Tally"],
 )
 
 app.include_router(
     dashboard_router,
     prefix="/api/v1/dashboard",
-    tags=["Dashboard"]
+    tags=["Dashboard"],
 )
 
 app.include_router(
     reports_router,
     prefix="/api/v1/reports",
-    tags=["Reports"]
+    tags=["Reports"],
 )
 
 app.include_router(
     chat_router,
     prefix="/api/v1",
-    tags=["Chatbot"]
+    tags=["Chatbot"],
 )
 
 
 @app.get("/")
 def root():
     return {
-        "message": "Tally Financial Intelligence API is running"
+        "message": (
+            "Tally Financial Intelligence API "
+            "is running"
+        )
     }
