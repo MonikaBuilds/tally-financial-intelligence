@@ -286,6 +286,13 @@ def build_bills_receivable_request(
 def build_ledger_list_request(
     company_name: str | None = None
 ):
+    """
+    Build a Tally request to load ledger master information.
+
+    The parent group helps us identify bank, cash, sales,
+    purchase, debtor and creditor ledgers correctly.
+    """
+
     company_xml = build_company_variable(
         company_name
     )
@@ -296,11 +303,12 @@ def build_ledger_list_request(
             <VERSION>1</VERSION>
             <TALLYREQUEST>Export</TALLYREQUEST>
             <TYPE>Collection</TYPE>
-            <ID>List of Ledgers</ID>
+            <ID>Chat Ledger Collection</ID>
         </HEADER>
 
         <BODY>
             <DESC>
+
                 <STATICVARIABLES>
                     <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
                     {company_xml}
@@ -309,9 +317,29 @@ def build_ledger_list_request(
                 <TDL>
                     <TDLMESSAGE>
 
-                        <COLLECTION NAME="List of Ledgers">
+                        <COLLECTION NAME="Chat Ledger Collection">
                             <TYPE>Ledger</TYPE>
-                            <FETCH>NAME, PARENT, OPENINGBALANCE, CLOSINGBALANCE</FETCH>
+
+                            <!--
+                            Ask Tally for only the ledger fields
+                            required by our chatbot and reports.
+                            -->
+                            <NATIVEMETHOD>
+                                Name,
+                                Parent,
+                                OpeningBalance,
+                                ClosingBalance
+                            </NATIVEMETHOD>
+
+                            <!--
+                            Some Tally responses may not expose
+                            PARENT consistently. This gives the
+                            parser another reliable parent value.
+                            -->
+                            <COMPUTE>
+                                CHATPARENTGROUP : $Parent
+                            </COMPUTE>
+
                         </COLLECTION>
 
                     </TDLMESSAGE>
@@ -323,12 +351,21 @@ def build_ledger_list_request(
     """
 
 
+
 def build_ledger_report_request(
     ledger_name: str,
     company_name: str | None = None,
     from_date: date | None = None,
     to_date: date | None = None
 ):
+    """
+    Build the Tally request used to fetch voucher entries
+    for a particular ledger.
+
+    The parser later filters these vouchers to return the
+    ledger's transactions and balances.
+    """
+
     company_xml = build_company_variable(
         company_name
     )
@@ -384,6 +421,8 @@ def build_ledger_report_request(
                                 PARTYLEDGERNAME,
                                 ISDELETED,
                                 ALLLEDGERENTRIES.*,
+                                ALLLEDGERENTRIES.CATEGORYALLOCATIONS.*,
+                                ALLLEDGERENTRIES.CATEGORYALLOCATIONS.COSTCENTREALLOCATIONS.*,
                                 ALLINVENTORYENTRIES.*
                             </FETCH>
 
@@ -396,7 +435,6 @@ def build_ledger_report_request(
         </BODY>
     </ENVELOPE>
     """
-
 
 def build_bills_payable_request(
     company_name: str | None = None
@@ -420,6 +458,57 @@ def build_bills_payable_request(
                     <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
                     {company_xml}
                 </STATICVARIABLES>
+            </DESC>
+        </BODY>
+    </ENVELOPE>
+    """
+    
+def build_stock_item_list_request(
+    company_name: str | None = None,
+):
+    """
+    Build a Tally request to fetch stock item details.
+    """
+
+    company_xml = build_company_variable(company_name)
+
+    # Native methods tell Tally which stock fields we need.
+    # Keeping this list small also avoids fetching unnecessary data.
+    return f"""
+    <ENVELOPE>
+        <HEADER>
+            <VERSION>1</VERSION>
+            <TALLYREQUEST>Export</TALLYREQUEST>
+            <TYPE>Collection</TYPE>
+            <ID>Chat Stock Item Collection</ID>
+        </HEADER>
+
+        <BODY>
+            <DESC>
+                <STATICVARIABLES>
+                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+                    {company_xml}
+                </STATICVARIABLES>
+
+                <TDL>
+                    <TDLMESSAGE>
+                        <COLLECTION NAME="Chat Stock Item Collection">
+                            <TYPE>StockItem</TYPE>
+
+                            <NATIVEMETHOD>
+                                Name,
+                                Parent,
+                                BaseUnits,
+                                OpeningBalance,
+                                OpeningRate,
+                                OpeningValue,
+                                ClosingBalance,
+                                ClosingRate,
+                                ClosingValue
+                            </NATIVEMETHOD>
+                        </COLLECTION>
+                    </TDLMESSAGE>
+                </TDL>
             </DESC>
         </BODY>
     </ENVELOPE>

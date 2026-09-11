@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -14,12 +15,14 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 MODEL_NAME = os.getenv(
     "GEMINI_MODEL",
-    "gemini-3.6-flash"
+    "gemini-3.6-flash",
 )
+
+GEMINI_TIMEOUT_SECONDS = 8
 
 
 client = genai.Client(
-    api_key=GEMINI_API_KEY
+    api_key=GEMINI_API_KEY,
 )
 
 
@@ -46,44 +49,61 @@ def _build_gemini_tools():
     function_declarations = []
 
     for definition in TOOL_DEFINITIONS:
-        function_declarations.append({
-            "name": definition["name"],
-            "description": definition["description"],
-            "parameters": definition["parameters"]
-        })
+        function_declarations.append(
+            {
+                "name": definition["name"],
+                "description": definition["description"],
+                "parameters": definition["parameters"],
+            }
+        )
 
     return [
         types.Tool(
-            function_declarations=function_declarations
+            function_declarations=function_declarations,
         )
     ]
 
 
+# Build once instead of rebuilding the complete tool schema
+# for every chatbot request.
+GEMINI_TOOLS = _build_gemini_tools()
+
+
 async def select_tool(
-    message: str
+    message: str,
 ) -> dict:
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION,
-        tools=_build_gemini_tools(),
+        tools=GEMINI_TOOLS,
         automatic_function_calling=(
             types.AutomaticFunctionCallingConfig(
-                disable=True
+                disable=True,
             )
-        )
+        ),
     )
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=message,
-            config=config
+        response = await asyncio.wait_for(
+            client.aio.models.generate_content(
+                model=MODEL_NAME,
+                contents=message,
+                config=config,
+            ),
+            timeout=GEMINI_TIMEOUT_SECONDS,
         )
+
+    except asyncio.TimeoutError:
+        return {
+            "tool_name": None,
+            "arguments": {},
+            "error": "timeout",
+        }
 
     except errors.ClientError as exc:
         status_code = getattr(
             exc,
             "code",
-            None
+            None,
         )
 
         error_text = str(exc).lower()
@@ -96,41 +116,41 @@ async def select_tool(
             return {
                 "tool_name": None,
                 "arguments": {},
-                "error": "rate_limit"
+                "error": "rate_limit",
             }
 
         if status_code in (401, 403):
             return {
                 "tool_name": None,
                 "arguments": {},
-                "error": "authentication"
+                "error": "authentication",
             }
 
         if status_code == 404:
             return {
                 "tool_name": None,
                 "arguments": {},
-                "error": "model_not_found"
+                "error": "model_not_found",
             }
 
         return {
             "tool_name": None,
             "arguments": {},
-            "error": "model_error"
+            "error": "model_error",
         }
 
     except errors.ServerError:
         return {
             "tool_name": None,
             "arguments": {},
-            "error": "model_unavailable"
+            "error": "model_unavailable",
         }
 
     except Exception:
         return {
             "tool_name": None,
             "arguments": {},
-            "error": "model_unavailable"
+            "error": "model_unavailable",
         }
 
     function_calls = response.function_calls or []
@@ -139,7 +159,7 @@ async def select_tool(
         return {
             "tool_name": None,
             "arguments": {},
-            "error": None
+            "error": None,
         }
 
     tool_call = function_calls[0]
@@ -149,5 +169,5 @@ async def select_tool(
         "arguments": dict(
             tool_call.args or {}
         ),
-        "error": None
+        "error": None,
     }

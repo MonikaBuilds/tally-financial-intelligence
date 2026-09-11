@@ -229,3 +229,37 @@ def authenticate_user(
     )
 
     return user, companies
+
+def update_user_password(
+    username: str,
+    new_password: str,
+) -> None:
+    clean_username = username.strip()
+
+    if not clean_username:
+        raise ValueError("username is required")
+
+    if len(new_password) < 8:
+        raise ValueError(
+            "password must be at least 8 characters"
+        )
+
+    password_hash = hash_password(new_password)
+
+    with _connect() as connection:
+        cursor = connection.execute(
+            """
+            UPDATE users
+            SET password_hash = ?
+            WHERE username = ?
+            """,
+            (
+                password_hash,
+                clean_username,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            raise ValueError(
+                "user does not exist"
+            )

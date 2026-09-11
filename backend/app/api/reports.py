@@ -1,7 +1,9 @@
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+
+from app.security.auth import get_authorized_company
 
 from app.tally.service import (
     fetch_profit_loss,
@@ -128,7 +130,7 @@ def _export_response(
 async def get_profit_loss_report(
     from_date: date | None = None,
     to_date: date | None = None,
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     if from_date and to_date and from_date > to_date:
         raise HTTPException(
@@ -164,7 +166,7 @@ async def export_profit_loss_report(
     file_format: str,
     from_date: date | None = None,
     to_date: date | None = None,
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         report = await fetch_profit_loss(
@@ -191,7 +193,7 @@ async def export_profit_loss_report(
 
 @router.get("/trial-balance")
 async def get_trial_balance_report(
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     to_date: date | None = None
 ):
     try:
@@ -216,7 +218,7 @@ async def get_trial_balance_report(
 @router.get("/trial-balance/export/{file_format}")
 async def export_trial_balance_report(
     file_format: str,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     to_date: date | None = None
 ):
     try:
@@ -251,7 +253,7 @@ async def export_trial_balance_report(
 
 @router.get("/balance-sheet")
 async def get_balance_sheet_report(
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     to_date: date | None = None
 ):
     try:
@@ -326,7 +328,7 @@ async def get_bill_allocations(
 
 @router.get("/receivables")
 async def get_receivables_report(
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         tally_bills = await fetch_bills_receivable(
@@ -362,7 +364,7 @@ async def get_receivables_report(
 @router.get("/receivables/export/{file_format}")
 async def export_receivables_report(
     file_format: str,
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         tally_bills = await fetch_bills_receivable(
@@ -405,7 +407,7 @@ async def export_receivables_report(
 
 @router.get("/payables")
 async def get_payables_report(
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         tally_bills = await fetch_bills_payable(
@@ -484,7 +486,7 @@ async def export_payables_report(
 
 @router.get("/ledgers")
 async def get_ledger_list(
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         ledgers = await fetch_ledger_list(
@@ -508,7 +510,7 @@ async def get_ledger_list(
 @router.get("/ledger")
 async def get_ledger_report(
     ledger_name: str,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     from_date: date | None = None,
     to_date: date | None = None
 ):
@@ -546,7 +548,7 @@ async def get_ledger_report(
 async def export_ledger_report(
     file_format: str,
     ledger_name: str,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     from_date: date | None = None,
     to_date: date | None = None
 ):
@@ -593,7 +595,7 @@ async def export_ledger_report(
 
 @router.get("/pending-invoices")
 async def get_pending_invoices_report(
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         receivable_bills = await fetch_bills_receivable(
@@ -643,7 +645,7 @@ async def get_pending_invoices_report(
 @router.get("/pending-invoices/export/{file_format}")
 async def export_pending_invoices_report(
     file_format: str,
-    company_name: str | None = None
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         receivable_bills = await fetch_bills_receivable(

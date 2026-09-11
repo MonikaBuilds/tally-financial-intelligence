@@ -11,7 +11,9 @@ from app.tally.xml_builder import (
     build_bills_receivable_request,
     build_bills_payable_request,
     build_ledger_list_request,
-    build_ledger_report_request
+    build_ledger_report_request,
+    build_stock_item_list_request,
+    
 )
 
 from app.tally.parser import (
@@ -22,7 +24,9 @@ from app.tally.parser import (
     parse_bill_allocations,
     parse_outstanding_report,
     parse_ledger_list,
-    parse_ledger_report
+    parse_ledger_report,
+    parse_stock_item_list,
+    
 )
 
 
@@ -185,3 +189,25 @@ async def fetch_bills_payable(
         response,
         report_type="payable"
     )
+    
+async def fetch_stock_item_list(
+    company_name: str | None = None,
+) -> list[dict]:
+    """
+    Fetch stock item details from Tally and return them
+    as a clean Python list.
+    """
+
+    # Build the XML request for inventory items.
+    xml_request = build_stock_item_list_request(
+        company_name=company_name
+    )
+
+    # Use the same Tally client used by the other service functions.
+    response = await client.send_xml(
+        xml_request
+    )
+
+    # Convert the XML response into Python dictionaries
+    # so other parts of the application can use the stock data easily.
+    return parse_stock_item_list(response)

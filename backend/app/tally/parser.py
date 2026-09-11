@@ -449,52 +449,152 @@ def parse_outstanding_report(
 
     return bills
 
-
-# ============================================================
 # LEDGER LIST
-# ============================================================
 
-def parse_ledger_list(xml_response: str):
+
+def parse_ledger_list(xml_response: str) -> list[dict]:
+    """
+    Parse ledger master details returned by Tally.
+
+    This is used by chatbot tools to find ledgers,
+    their parent groups and opening/closing balances.
+    """
+
     root = parse_xml(xml_response)
 
     ledgers = []
-    seen = set()
 
     for ledger in root.findall(".//LEDGER"):
 
-        name = ledger.get("NAME") or ledger.findtext("NAME")
+        name = (
+            ledger.get("NAME")
+            or ledger.findtext("NAME")
+            or ""
+        ).strip()
 
         if not name:
             continue
 
-        name = name.strip()
+        # Tally may return the parent group using
+        # either CHATPARENTGROUP or PARENT.
+        parent = (
+            ledger.findtext("CHATPARENTGROUP")
+            or ledger.findtext("PARENT")
+            or ""
+        ).strip()
 
-        key = name.casefold()
+        opening_balance = to_float(
+            ledger.findtext(
+                "OPENINGBALANCE"
+            )
+        )
 
-        if key in seen:
-            continue
-
-        seen.add(key)
+        closing_balance = to_float(
+            ledger.findtext(
+                "CLOSINGBALANCE"
+            )
+        )
 
         ledgers.append({
             "name": name,
-            "parent": (
-                ledger.findtext("PARENT", "") or ""
-            ).strip(),
-            "opening_balance": to_float(
-                ledger.findtext("OPENINGBALANCE")
+            "parent": parent,
+            "opening_balance": round(
+                opening_balance,
+                2
             ),
-            "closing_balance": to_float(
-                ledger.findtext("CLOSINGBALANCE")
-            )
+            "closing_balance": round(
+                closing_balance,
+                2
+            ),
         })
-
-    ledgers.sort(
-        key=lambda item: item["name"]
-    )
 
     return ledgers
 
+# STOCK ITEM LIST
+
+def parse_stock_item_list(xml_text: str) -> list[dict]:
+    """
+    Parse stock item details returned by Tally XML.
+    """
+
+    # Clean Tally XML before parsing because inventory data
+    # can sometimes contain invalid XML characters.
+    root = parse_xml(xml_text)
+
+    stock_items = []
+
+    # Tally returns every inventory item inside a STOCKITEM node.
+    for item in root.findall(".//STOCKITEM"):
+        name = (
+            item.get("NAME")
+            or item.findtext("NAME")
+            or ""
+        ).strip()
+
+        if not name:
+            continue
+
+        # Parent normally tells us the stock group/category.
+        parent = (
+            item.findtext("PARENT")
+            or ""
+        ).strip()
+
+        # Base unit can be Nos, Pcs, Kg, etc.
+        base_unit = (
+            item.findtext("BASEUNITS")
+            or item.findtext("BASEUNIT")
+            or ""
+        ).strip()
+
+        # Keep Tally quantity text as-is for now.
+        # Example: "10 Nos" or "25 Pcs".
+        # We will normalize quantity only after checking real Tally output.
+        opening_balance = (
+            item.findtext("OPENINGBALANCE")
+            or ""
+        ).strip()
+
+        closing_balance = (
+            item.findtext("CLOSINGBALANCE")
+            or ""
+        ).strip()
+
+        # Rate and value are also kept as strings first.
+        # Tally may include signs or formatting in these fields.
+        opening_rate = (
+            item.findtext("OPENINGRATE")
+            or ""
+        ).strip()
+
+        closing_rate = (
+            item.findtext("CLOSINGRATE")
+            or ""
+        ).strip()
+
+        opening_value = (
+            item.findtext("OPENINGVALUE")
+            or ""
+        ).strip()
+
+        closing_value = (
+            item.findtext("CLOSINGVALUE")
+            or ""
+        ).strip()
+
+        stock_items.append({
+            "name": name,
+            "parent": parent,
+            "base_unit": base_unit,
+            "opening_balance": opening_balance,
+            "opening_rate": opening_rate,
+            "opening_value": opening_value,
+            "closing_balance": closing_balance,
+            "closing_rate": closing_rate,
+            "closing_value": closing_value,
+        })
+
+    return stock_items
 
 # ============================================================
 # LEDGER HELPERS
@@ -605,9 +705,54 @@ def _inventory_entry_nodes(voucher):
     return nodes
 
 
-# ============================================================
+# COST CENTRE ALLOCATIONS
+def _cost_centre_allocations(ledger_entry):
+    """
+    Extract cost centre allocations from a Tally ledger entry.
+    """
+
+    allocations = []
+
+    # Tally may place cost centre allocations inside
+    # CATEGORYALLOCATIONS.LIST -> COSTCENTREALLOCATIONS.LIST.
+    for category in ledger_entry.findall(
+        ".//CATEGORYALLOCATIONS.LIST"
+    ):
+        category_name = category.findtext(
+            "CATEGORY",
+            "",
+        ).strip()
+
+        for allocation in category.findall(
+            ".//COSTCENTREALLOCATIONS.LIST"
+        ):
+            cost_centre_name = allocation.findtext(
+                "NAME",
+                "",
+            ).strip()
+
+            if not cost_centre_name:
+                continue
+
+            amount = to_float(
+                allocation.findtext(
+                    "AMOUNT"
+                )
+            )
+
+            allocations.append({
+                "cost_centre_name": cost_centre_name,
+                "category_name": category_name,
+                "amount": round(
+                    amount,
+                    2,
+                ),
+            })
+
+    return allocations
+
 # LEDGER REPORT
-# ============================================================
+
 
 def parse_ledger_report(
     xml_response: str,
@@ -626,21 +771,11 @@ def parse_ledger_report(
 
     entries = []
 
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # This set removes duplicate FINAL ledger rows.
-    #
-    # Tally can return the same voucher multiple times with
-    # slightly different XML structures/signatures.
-    # --------------------------------------------------------
-
     seen_rows = set()
 
     for voucher in root.findall(".//VOUCHER"):
 
-        # ----------------------------------------------------
         # Ignore deleted vouchers
-        # ----------------------------------------------------
 
         if voucher.findtext(
             "ISDELETED",
@@ -671,6 +806,61 @@ def parse_ledger_report(
             "PARTYLEDGERNAME",
             ""
         ).strip()
+
+
+        # ----------------------------------------------------
+        # Read stock item details from this voucher.
+        #
+        # These details are used later for item-wise sales,
+        # purchases and stock movement analysis.
+        # ----------------------------------------------------
+
+        stock_items = []
+
+        for inventory_node in _inventory_entry_nodes(
+            voucher
+        ):
+
+            stock_name = inventory_node.findtext(
+                "STOCKITEMNAME",
+                ""
+            ).strip()
+
+            if not stock_name:
+                continue
+
+            actual_quantity = inventory_node.findtext(
+                "ACTUALQTY",
+                ""
+            ).strip()
+
+            billed_quantity = inventory_node.findtext(
+                "BILLEDQTY",
+                ""
+            ).strip()
+
+            rate = inventory_node.findtext(
+                "RATE",
+                ""
+            ).strip()
+
+            amount = to_float(
+                inventory_node.findtext(
+                    "AMOUNT"
+                )
+            )
+
+            stock_items.append({
+                "stock_item_name": stock_name,
+                "actual_quantity": actual_quantity,
+                "billed_quantity": billed_quantity,
+                "rate": rate,
+                "amount": round(
+                    amount,
+                    2
+                ),
+            })
+
 
         ledger_entry_nodes = _ledger_entry_nodes(
             voucher
@@ -840,14 +1030,32 @@ def parse_ledger_report(
 
             seen_rows.add(row_key)
 
+            # Read cost centre allocations attached
+            # to this ledger entry.
+            cost_centre_allocations = (
+                _cost_centre_allocations(
+                    ledger_entry
+                )
+            )
             entries.append({
                 "date": voucher_date,
                 "voucher_type": voucher_type,
                 "voucher_number": voucher_number,
+
+                # Keep party separately for customer and supplier analysis.
+                "party_name": party_name,
+
                 "particulars": particulars,
                 "narration": narration,
+
+                # Keep inventory details for item-wise analysis.
+                "stock_items": stock_items,
+
                 "debit": round(debit, 2),
                 "credit": round(credit, 2),
+                
+                # Keep actual Tally cost centre allocations.
+                "cost_centre_allocations": cost_centre_allocations,
             })
 
     # ========================================================

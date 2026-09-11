@@ -49,46 +49,179 @@ h1, h2, h3 {
   margin: 0;
 }
 
-/* Layout */
+  /* ================================
+   Application Layout
+   ================================ */
 
 .app-layout {
   display: flex;
+  width: 100%;
   min-height: 100vh;
+  background: var(--bg);
 }
+
+/* ---------- Sidebar ---------- */
 
 .sidebar {
-  width: 230px;
+  width: 250px;
+  height: 100vh;
   flex-shrink: 0;
-  background: var(--sidebar-bg);
-  padding: 24px 16px;
+
+  position: sticky;
+  top: 0;
+
   display: flex;
   flex-direction: column;
-  gap: 24px;
+
+  padding: 20px 14px;
+
+  background: var(--sidebar-bg);
+  overflow-y: auto;
 }
 
+/* ---------- Brand ---------- */
+
 .sidebar-brand {
-  color: var(--sidebar-text-active);
-  font-size: 16px;
-  font-weight: 600;
-  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 2px 6px 20px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+.sidebar-brand-logo {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  background: var(--accent);
+  color: #fff;
+
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.sidebar-brand-copy {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-brand-copy strong {
+  color: var(--sidebar-text-active);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.sidebar-brand-copy span {
+  color: var(--sidebar-text);
+  font-size: 12px;
+}
+
+/* ---------- Section labels ---------- */
+
+.sidebar-section-label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: var(--sidebar-text);
+
+  font-size: 10px;
+  font-weight: 600;
+
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* ---------- Company ---------- */
+
+.sidebar-company {
+  padding: 18px 6px 8px;
+}
+
+.sidebar-company-value {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: var(--sidebar-text-active);
+
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sidebar-company-value span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-indicator {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+}
+
+/* ---------- Navigation ---------- */
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+
+  padding: 14px 0;
+
+  flex: 1;
+}
+
+.sidebar-nav .sidebar-section-label {
+  margin-left: 6px;
 }
 
 .sidebar-link {
-  color: var(--sidebar-text);
-  text-decoration: none;
-  padding: 10px 12px;
+  min-height: 40px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 9px 11px;
+
   border-radius: 6px;
-  font-size: 14px;
+
+  color: var(--sidebar-text);
+
+  text-decoration: none;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--sidebar-text-active);
 }
 
 .sidebar-link--active {
@@ -96,10 +229,126 @@ h1, h2, h3 {
   color: var(--sidebar-text-active);
 }
 
+.sidebar-link--active:hover {
+  background: var(--accent);
+  color: var(--sidebar-text-active);
+}
+
+/* ---------- Account ---------- */
+
+.sidebar-account {
+  padding-top: 14px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 5px 6px 13px;
+}
+
+.sidebar-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.12);
+
+  color: var(--sidebar-text-active);
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sidebar-user-info {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-user-info strong {
+  overflow: hidden;
+
+  color: var(--sidebar-text-active);
+
+  font-size: 13px;
+  font-weight: 500;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-user-info span {
+  color: var(--sidebar-text);
+  font-size: 11px;
+}
+
+/* ---------- Logout ---------- */
+
+.sidebar-logout {
+  width: 100%;
+  min-height: 39px;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 8px 10px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+
+  color: var(--sidebar-text);
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.sidebar-logout svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.sidebar-logout:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--sidebar-text-active);
+}
+
+.sidebar-logout:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Main content ---------- */
+
 .app-content {
   flex: 1;
+  min-width: 0;
+
   padding: 32px 40px;
-  max-width: 1100px;
+
+  overflow-x: hidden;
 }
 
 .page-header {
@@ -503,7 +752,6 @@ h1, h2, h3 {
 
 .sidebar-link-icon {
   margin-right: 8px;
-  vertical-align: -3px;
   flex-shrink: 0;
 }
 
@@ -527,4 +775,124 @@ h1, h2, h3 {
 
 .chat-fab:hover {
   transform: scale(1.06);
+}
+
+/* ================================
+   Responsive Application Layout
+   ================================ */
+
+@media (max-width: 1100px) {
+  .sidebar {
+    width: 220px;
+  }
+
+  .app-content {
+    padding: 28px 26px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    display: block;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+
+    position: relative;
+
+    padding: 14px 16px;
+  }
+
+  .sidebar-brand {
+    padding-bottom: 14px;
+  }
+
+  .sidebar-company {
+    padding: 14px 6px 6px;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+
+    padding: 10px 0 12px;
+
+    scrollbar-width: thin;
+  }
+
+  .sidebar-nav .sidebar-section-label {
+    display: none;
+  }
+
+  .sidebar-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .sidebar-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding-top: 12px;
+  }
+
+  .sidebar-user {
+    padding: 0;
+  }
+
+  .sidebar-logout {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .app-content {
+    width: 100%;
+
+    padding: 24px 20px;
+  }
+
+  .chat-fab {
+    right: 20px;
+    bottom: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-brand-copy strong {
+    font-size: 12px;
+  }
+
+  .sidebar-company {
+    padding-top: 12px;
+  }
+
+  .sidebar-user-info span {
+    display: none;
+  }
+
+  .sidebar-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .app-content {
+    padding: 20px 14px;
+  }
+
+  .page-header h1 {
+    font-size: 21px;
+  }
+
+  .chat-fab {
+    width: 50px;
+    height: 50px;
+
+    right: 16px;
+    bottom: 16px;
+  }
 }

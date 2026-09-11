@@ -24,3 +24,6 @@ Thumbs.db
 
 # Local authentication database
 backend/data/*.db
+
+# Test-generated databases
+backend/tests/.test_data/

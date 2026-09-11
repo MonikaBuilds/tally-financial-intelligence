@@ -7,7 +7,7 @@ from typing import Any
 from app.chatbot.tool_registry import TOOL_FUNCTIONS
 
 
-CHATBOT_TOOL_TIMEOUT = 10.0
+CHATBOT_TOOL_TIMEOUT = 20.0
 
 CHATBOT_MAX_CONCURRENT_TOOLS = max(
     1,
@@ -267,6 +267,8 @@ async def execute_tool(
         }
 
     except Exception:
+        # Return a safe message to the user without
+        # exposing internal errors from the backend.
         return {
             "success": False,
             "source": "tally",

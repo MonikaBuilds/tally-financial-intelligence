@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Routes, Route } from 'react-router'
+
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Ledger from './pages/Ledger'
@@ -10,20 +12,60 @@ import TrialBalance from './pages/TrialBalance'
 import BalanceSheet from './pages/BalanceSheet'
 import TallyStatus from './pages/TallyStatus'
 import Chatbot from './pages/Chatbot'
+import Login from './pages/Login'
+
+import {
+  getAccessToken,
+  clearAccessToken,
+} from './api/client'
+
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => Boolean(getAccessToken())
+  )
+
+  function handleLogin() {
+    setIsAuthenticated(true)
+  }
+
+  function handleLogout() {
+    clearAccessToken()
+
+    sessionStorage.removeItem('chat_user')
+    sessionStorage.removeItem('selected_company')
+
+    setIsAuthenticated(false)
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />
+  }
+
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route element={<Layout onLogout={handleLogout} />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/ledger" element={<Ledger />} />
         <Route path="/profit-loss" element={<ProfitLoss />} />
         <Route path="/receivables" element={<Receivables />} />
         <Route path="/payables" element={<Payables />} />
-        <Route path="/pending-invoices" element={<PendingInvoices />} />
-        <Route path="/trial-balance" element={<TrialBalance />} />
-        <Route path="/balance-sheet" element={<BalanceSheet />} />
-        <Route path="/tally-status" element={<TallyStatus />} />
+        <Route
+          path="/pending-invoices"
+          element={<PendingInvoices />}
+        />
+        <Route
+          path="/trial-balance"
+          element={<TrialBalance />}
+        />
+        <Route
+          path="/balance-sheet"
+          element={<BalanceSheet />}
+        />
+        <Route
+          path="/tally-status"
+          element={<TallyStatus />}
+        />
         <Route path="/chatbot" element={<Chatbot />} />
       </Route>
     </Routes>

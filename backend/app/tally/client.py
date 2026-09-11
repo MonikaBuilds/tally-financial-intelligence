@@ -1,6 +1,8 @@
+import asyncio
 import html
 import re
 
+import time
 import httpx
 
 from app.core.config import settings
@@ -112,36 +114,88 @@ class TallyClient:
         xml_payload: str,
         timeout: float = 30.0,
     ) -> str:
-        if self._shared_client is not None:
-            response = await self._shared_client.post(
-                self.base_url,
-                content=xml_payload,
-                headers={
-                    "Content-Type": "text/xml",
-                },
-                timeout=timeout,
-            )
+        # Measure the actual time Tally takes to process this XML request.
+        # This helps us identify slow Tally reports during development.
+        start_time = time.perf_counter()
 
-        else:
-            # Fallback for tests or standalone calls where
-            # the FastAPI application lifespan is not active.
-            async with httpx.AsyncClient(
-                timeout=timeout
-            ) as client:
-                response = await client.post(
+        # Try to identify the report name from the XML for easier debugging.
+        report_match = re.search(
+            r"<REPORTNAME>(.*?)</REPORTNAME>",
+            xml_payload,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
+        report_name = (
+            report_match.group(1).strip()
+            if report_match
+            else "Unknown Report"
+        )
+
+        print(
+            f"TALLY DEBUG: starting report={report_name}"
+        )
+
+        try:
+            if self._shared_client is not None:
+                response = await self._shared_client.post(
                     self.base_url,
                     content=xml_payload,
                     headers={
                         "Content-Type": "text/xml",
                     },
+                    timeout=timeout,
                 )
 
-        response.raise_for_status()
+            else:
+                # This fallback is mainly used by tests or scripts
+                # where the FastAPI lifespan has not created the shared client.
+                async with httpx.AsyncClient(
+                    timeout=timeout
+                ) as client:
+                    response = await client.post(
+                        self.base_url,
+                        content=xml_payload,
+                        headers={
+                            "Content-Type": "text/xml",
+                        },
+                    )
 
-        xml_response = response.text
+            duration = time.perf_counter() - start_time
 
-        self._raise_for_tally_error(
-            xml_response
-        )
+            print(
+                f"TALLY DEBUG: completed report={report_name} "
+                f"in {duration:.2f}s"
+            )
+
+            response.raise_for_status()
+
+            xml_response = response.text
+
+            self._raise_for_tally_error(
+                xml_response
+            )
+
+            return xml_response
+
+        except asyncio.CancelledError:
+            duration = time.perf_counter() - start_time
+
+            print(
+                f"TALLY DEBUG: cancelled report={report_name} "
+                f"after {duration:.2f}s"
+            )
+
+            raise
+
+        except Exception as exc:
+            duration = time.perf_counter() - start_time
+
+            print(
+                f"TALLY DEBUG: failed report={report_name} "
+                f"after {duration:.2f}s -> "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+            raise
 
         return xml_response
