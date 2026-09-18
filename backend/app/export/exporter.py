@@ -16,6 +16,7 @@ from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
+from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import (
     SimpleDocTemplate,
     Table,
@@ -23,7 +24,7 @@ from reportlab.platypus import (
     Paragraph,
     Spacer
 )
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 
 def _row_values(columns, rows):
@@ -47,12 +48,21 @@ def build_excel(
     columns: list[dict],
     rows: list[dict],
     company_name: str | None = None,
-    footer: dict | None = None
+    footer: dict | None = None,
+    period: str | None = None,
 ) -> bytes:
     """
     columns: [{"key": "name", "label": "Ledger"}, ...]
     footer: optional {"label": "Total", "key": "amount", "value": 12345}
             style totals row shown under the table.
+    period: optional Tally-style period line, e.g.
+            "1-Apr-2024 to 31-Mar-2025" or "as on 31-Mar-2025".
+
+    Layout follows Tally Prime's printed-report convention: company name
+    centered on top, report title centered underneath it, an optional
+    period/"as on" line, then a bordered, dark-header data grid with a
+    bold totals row - so a printout of this sheet reads the same way a
+    Tally "Export > Excel" printout does.
     """
 
     workbook = Workbook()
@@ -71,24 +81,50 @@ def build_excel(
     )
     header_font = Font(color="FFFFFF", bold=True)
     thin_border = Border(*(Side(style="thin", color="CCCCCC"),) * 4)
+    box_border = Border(*(Side(style="medium", color="1F2937"),) * 4)
+
+    num_cols = max(len(columns), 1)
+    center = Alignment(horizontal="center")
 
     row_cursor = 1
 
     sheet.cell(
         row=row_cursor, column=1, value=company_name or title
     ).font = Font(bold=True, size=14)
+    sheet.merge_cells(
+        start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=num_cols
+    )
+    sheet.cell(row=row_cursor, column=1).alignment = center
     row_cursor += 1
 
     sheet.cell(row=row_cursor, column=1, value=title).font = Font(
-        bold=True, size=11, color="555555"
+        bold=True, size=12, color="333333"
     )
+    sheet.merge_cells(
+        start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=num_cols
+    )
+    sheet.cell(row=row_cursor, column=1).alignment = center
     row_cursor += 1
+
+    if period:
+        sheet.cell(row=row_cursor, column=1, value=period).font = Font(
+            size=10, color="555555"
+        )
+        sheet.merge_cells(
+            start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=num_cols
+        )
+        sheet.cell(row=row_cursor, column=1).alignment = center
+        row_cursor += 1
 
     sheet.cell(
         row=row_cursor,
         column=1,
-        value=f"Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')}"
+        value=f"(Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')})"
     ).font = Font(size=9, italic=True, color="888888")
+    sheet.merge_cells(
+        start_row=row_cursor, start_column=1, end_row=row_cursor, end_column=num_cols
+    )
+    sheet.cell(row=row_cursor, column=1).alignment = center
     row_cursor += 2
 
     header_row = row_cursor
@@ -153,6 +189,41 @@ def build_excel(
 
     sheet.freeze_panes = sheet.cell(row=header_row + 1, column=1)
 
+    # Tally's exports draw one solid box around the whole grid (header +
+    # data + totals) in addition to the light cell gridlines - replicate
+    # that by thickening the outermost edge cells.
+    first_col, last_col = 1, num_cols
+    for col in range(first_col, last_col + 1):
+        top_cell = sheet.cell(row=header_row, column=col)
+        bottom_cell = sheet.cell(row=last_row, column=col)
+        top_cell.border = Border(
+            top=Side(style="medium", color="1F2937"),
+            left=top_cell.border.left,
+            right=top_cell.border.right,
+            bottom=top_cell.border.bottom,
+        )
+        bottom_cell.border = Border(
+            bottom=Side(style="medium", color="1F2937"),
+            left=bottom_cell.border.left,
+            right=bottom_cell.border.right,
+            top=bottom_cell.border.top,
+        )
+    for row in range(header_row, last_row + 1):
+        left_cell = sheet.cell(row=row, column=first_col)
+        right_cell = sheet.cell(row=row, column=last_col)
+        left_cell.border = Border(
+            left=Side(style="medium", color="1F2937"),
+            top=left_cell.border.top,
+            right=left_cell.border.right,
+            bottom=left_cell.border.bottom,
+        )
+        right_cell.border = Border(
+            right=Side(style="medium", color="1F2937"),
+            top=right_cell.border.top,
+            left=right_cell.border.left,
+            bottom=right_cell.border.bottom,
+        )
+
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
@@ -163,29 +234,54 @@ def build_pdf(
     columns: list[dict],
     rows: list[dict],
     company_name: str | None = None,
-    footer: dict | None = None
+    footer: dict | None = None,
+    period: str | None = None,
 ) -> bytes:
+    """
+    period: optional Tally-style period line, e.g.
+            "1-Apr-2024 to 31-Mar-2025" or "as on 31-Mar-2025".
+
+    Mirrors Tally Prime's printed layout: company name and report title
+    centered at the top, an optional period/"as on" line beneath, a
+    boxed data grid, and a "Page X of Y" footer on every page.
+    """
     buffer = io.BytesIO()
 
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(A4) if len(columns) > 5 else A4,
         topMargin=15 * mm,
-        bottomMargin=15 * mm,
+        bottomMargin=18 * mm,
         leftMargin=12 * mm,
         rightMargin=12 * mm,
     )
 
     styles = getSampleStyleSheet()
+    centered_title = ParagraphStyle(
+        "CenteredTitle", parent=styles["Title"], alignment=TA_CENTER
+    )
+    centered_heading = ParagraphStyle(
+        "CenteredHeading", parent=styles["Heading3"], alignment=TA_CENTER
+    )
+    centered_normal = ParagraphStyle(
+        "CenteredNormal", parent=styles["Normal"], alignment=TA_CENTER
+    )
+
     elements = [
-        Paragraph(company_name or title, styles["Title"]),
-        Paragraph(title, styles["Heading3"]),
-        Paragraph(
-            f"Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')}",
-            styles["Normal"]
-        ),
-        Spacer(1, 10),
+        Paragraph(company_name or title, centered_title),
+        Paragraph(title, centered_heading),
     ]
+
+    if period:
+        elements.append(Paragraph(period, centered_normal))
+
+    elements.append(
+        Paragraph(
+            f"(Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')})",
+            centered_normal
+        )
+    )
+    elements.append(Spacer(1, 10))
 
     header = [column["label"] for column in columns]
     body = _row_values(columns, rows)
@@ -224,6 +320,7 @@ def build_pdf(
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+        ("BOX", (0, 0), (-1, -1), 1.2, colors.HexColor("#1F2937")),
         ("ROWBACKGROUNDS", (0, 1), (-1, -2 if footer else -1),
          [colors.white, colors.HexColor("#F7F7F7")]),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
@@ -241,5 +338,15 @@ def build_pdf(
     table.setStyle(TableStyle(style))
     elements.append(table)
 
-    doc.build(elements)
+    def _draw_footer(canvas, doc_):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#888888"))
+        page_width = doc_.pagesize[0]
+        canvas.drawCentredString(
+            page_width / 2, 10 * mm, f"Page {doc_.page}"
+        )
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
     return buffer.getvalue()

@@ -75,7 +75,9 @@ async def get_dashboard_summary(
             "data": summary
         }
 
-    except Exception:
+    except Exception as e:
+        print("Dashboard summary error:", repr(e))
+
         raise HTTPException(
             status_code=502,
             detail="Unable to build dashboard summary from Tally"
