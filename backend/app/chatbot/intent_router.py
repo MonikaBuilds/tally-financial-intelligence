@@ -439,8 +439,14 @@ def detect_local_intent(
         r"\b(?:show\s+)?"
         r"(.+?)\s+"
         r"(?:ledger\s+statement|ledger\s+transactions?)"
-        r"(?:\s+(?:today|this\s+month|last\s+month|"
-        r"this\s+financial\s+year|last\s+financial\s+year))?"
+        r"(?:\s+(?:"
+        r"today|"
+        r"this\s+month|"
+        r"last\s+month|"
+        r"this\s+financial\s+year|"
+        r"last\s+financial\s+year|"
+        r"from\s+.+?\s+to\s+.+?"
+        r"))?"
         r"\s*$",
         message,
         flags=re.IGNORECASE,

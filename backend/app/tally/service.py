@@ -774,6 +774,29 @@ async def fetch_stock_summary(
 
     return parse_stock_summary(response)
 
+async def fetch_chatbot_ledger_raw(
+    ledger_name: str,
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> str:
+    """
+    Fetch the ledger-scoped XML response directly from Tally
+    for chatbot use.
+
+    No financial values are calculated in this function.
+    """
+
+    response = await client.send_xml(
+        build_chatbot_ledger_request(
+            ledger_name=ledger_name,
+            company_name=company_name,
+            from_date=from_date,
+            to_date=to_date,
+        )
+    )
+
+    return response
 
 # ============================================================
 # STOCK ITEM

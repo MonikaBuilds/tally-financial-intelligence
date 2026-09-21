@@ -750,12 +750,11 @@ def format_tool_response(
 
         opening_balance = data.get(
             "opening_balance",
-            0
         )
 
         closing_balance = data.get(
             "closing_balance",
-            0
+            
         )
 
         entry_count = data.get(
@@ -763,35 +762,28 @@ def format_tool_response(
             0
         )
 
-        total_debit = data.get(
-            "total_debit",
-            0
-        )
 
-        total_credit = data.get(
-            "total_credit",
-            0
-        )
+        def _format_tally_balance(value):
+            if value is None:
+                return "not available in the Tally response"
 
-        def _with_suffix(value):
-            suffix = "Cr" if value < 0 else "Dr"
-            return f"{format_indian_currency(abs(value))} {suffix}"
+            return format_indian_currency(value)
 
         if entry_count == 0:
             return (
                 f"{ledger_name} has an opening balance of "
-                f"{_with_suffix(opening_balance)} and no "
-                f"transactions in the selected period, so the "
-                f"closing balance is {_with_suffix(closing_balance)}."
+                f"{_format_tally_balance(opening_balance)} and no "
+                f"transactions in the selected period. "
+                f"The closing balance returned is "
+                f"{_format_tally_balance(closing_balance)}."
             )
 
         return (
             f"{ledger_name}: opening balance "
-            f"{_with_suffix(opening_balance)}, "
-            f"{entry_count} entry(ies) totalling "
-            f"{format_indian_currency(total_debit)} debit and "
-            f"{format_indian_currency(total_credit)} credit, "
-            f"closing balance {_with_suffix(closing_balance)}."
+            f"{_format_tally_balance(opening_balance)}, "
+            f"{entry_count} transaction(s) found in the selected period, "
+            f"closing balance "
+            f"{_format_tally_balance(closing_balance)}."
         )
         
     if tool_name == "get_cash_balance":
@@ -2345,19 +2337,24 @@ def format_tool_response(
             0,
         )
 
-        closing_balance = float(
-            data.get(
-                "closing_balance",
-                0,
-            )
-            or 0
+        closing_balance = data.get(
+            "closing_balance"
         )
+
+        if closing_balance is None:
+            closing_balance_text = (
+                "not available in the Tally response"
+            )
+        else:
+            closing_balance_text = (
+                f"₹{closing_balance:,.2f}"
+            )
 
         return (
             f"{ledger_name} has {count} transaction(s) "
             f"for the requested period. "
             f"Closing balance is "
-            f"₹{abs(closing_balance):,.2f}."
+            f"{closing_balance_text}."
         )
 
     if tool_name == "get_sales_by_customer":

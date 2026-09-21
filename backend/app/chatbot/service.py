@@ -33,7 +33,6 @@ DATE_AWARE_TOOLS = {
     "get_profit_loss",
     "get_financial_summary",
 
-    "get_bank_transactions",
     "get_cash_transactions",
     "get_sales_transactions",
     "get_purchase_transactions",
@@ -70,13 +69,13 @@ DATE_AWARE_TOOLS = {
     "get_tax_liability",
     "get_tds_receivable",
     "get_tds_payable",
-    "get_financial_trends",
     "get_company_comparison",
     "get_financial_trends",
     
     "get_cost_centre_analysis",
     "get_party_statement",
-    "get_bank_transactions"
+    "get_bank_transactions",
+    "get_ledger_transactions",
     
 }
 
@@ -122,6 +121,7 @@ async def process_chat_message(
     message: str,
     company_name: str | None = None,
     allowed_companies: list[str] | None = None,
+    user_id: str | None = None,
 ) -> dict:
     """
     Process a chatbot message and return financial data
@@ -470,6 +470,7 @@ async def process_chat_message(
     tool_result = await execute_tool(
         tool_name=tool_name,
         arguments=arguments,
+        user_id = user_id,
     )
 
     if not tool_result.get("success"):

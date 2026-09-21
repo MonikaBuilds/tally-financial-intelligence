@@ -24,7 +24,8 @@ async def test_period_comparison_service_resolves_dates(
 
     async def fake_execute_tool(
         tool_name,
-        arguments
+        arguments,
+        user_id=None,
     ):
         captured["tool_name"] = tool_name
         captured["arguments"] = arguments.copy()
