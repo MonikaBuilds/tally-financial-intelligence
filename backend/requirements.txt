@@ -11,3 +11,6 @@ reportlab
 PyJWT 
 google-genai
 pytest-asyncio
+
+# database
+mysql-connector-python

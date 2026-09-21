@@ -24,6 +24,7 @@ from app.tally.xml_builder import (
     build_stock_movement_request,
     build_inventory_register_request,
     build_stock_item_list_request,
+    build_chatbot_ledger_request,
 )
 
 from app.tally.parser import (

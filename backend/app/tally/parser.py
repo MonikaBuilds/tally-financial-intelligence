@@ -199,7 +199,166 @@ def to_float(value) -> float:
         return 0.0
 
 
-def format_tally_date(value):
+def to_optional_float(value: str | None) -> float | None:
+    """
+    Parse a financial value supplied by Tally.
+
+    A genuine Tally value such as "0.00" remains 0.0.
+    Missing, blank, or invalid values remain unavailable as None.
+    """
+    if value is None:
+        return None
+
+    value = str(value).strip()
+
+    if not value:
+        return None
+
+    normalized = value.replace(",", "").replace(" ", "")
+
+    upper = normalized.upper()
+
+    if upper.endswith("DR") or upper.endswith("CR"):
+        normalized = normalized[:-2]
+
+    normalized = normalized.strip()
+
+    if not normalized:
+        return None
+
+    try:
+        return float(normalized)
+    except (TypeError, ValueError):
+        return None
+
+
+def _text(node, tag: str, default=""):
+    """
+    Return child text safely.
+    """
+    if node is None:
+        return default
+
+    child = node.find(tag)
+
+    if child is None or child.text is None:
+        return default
+
+    return child.text.strip()
+
+
+def _first_text(node, *tags, default=""):
+    """
+    Return the first non-empty matching child text.
+    """
+    for tag in tags:
+        value = _text(node, tag, "")
+
+        if value:
+            return value
+
+    return default
+
+
+def _nested_amount_text(node, *tags):
+    """
+    Tally's Trial Balance / Group Summary XML doesn't put the amount
+    directly on DSPCLDRAMT/DSPCLCRAMT/DSPCLAMT etc - it nests it one
+    level deeper, in a child with the same name plus an "A" suffix
+    (e.g. <DSPCLDRAMT><DSPCLDRAMTA>-6305000.00</DSPCLDRAMTA></DSPCLDRAMT>).
+    Try that nested form first, then fall back to the tag's own text
+    in case a differently-built report puts it there directly.
+    """
+    if node is None:
+        return ""
+
+    for tag in tags:
+        nested = _text(node, f"{tag}/{tag}A", "")
+
+        if nested:
+            return nested
+
+        direct = _text(node, tag, "")
+
+        if direct:
+            return direct
+
+    return ""
+
+
+def _parse_dspacc_rows(root):
+    """
+    Shared row-builder for Trial Balance and Group Summary - both
+    report types lay their data out the same way in Tally's XML:
+    a <DSPACCNAME> element (carrying just the ledger/group name)
+    immediately followed by a sibling <DSPACCINFO> element (carrying
+    the Debit/Credit closing amounts, nested one level deeper - see
+    _nested_amount_text). They are NOT nested inside each other, so
+    this walks the document in order and pairs each DSPACCNAME with
+    the DSPACCINFO that follows it.
+
+    Amounts come through with Tally's internal sign convention
+    (Dr negative, Cr positive) rather than the sign implied by which
+    column they're in - abs() them once assigned to the correct
+    column so the UI shows plain positive figures, the same way
+    Tally's own screen does.
+    """
+    rows = []
+    pending_name = None
+
+    for node in root.iter():
+        tag = node.tag
+
+        if tag == "DSPACCNAME":
+            name = _first_text(node, "DSPDISPNAME", "NAME")
+
+            if name:
+                pending_name = name
+
+            continue
+
+        if tag == "DSPACCINFO":
+            if pending_name is None:
+                continue
+
+            debit_text = _nested_amount_text(node, "DSPCLDRAMT", "DSPDRAMT")
+            credit_text = _nested_amount_text(node, "DSPCLCRAMT", "DSPCRAMT")
+
+            if debit_text or credit_text:
+                debit = abs(to_float(debit_text))
+                credit = abs(to_float(credit_text))
+            else:
+                # Fallback: single signed amount, some report builds
+                # only carry one closing figure per row rather than
+                # a separate Dr/Cr pair - positive -> Debit column,
+                # negative -> Credit column (absolute value).
+                signed_text = _nested_amount_text(
+                    node, "DSPCLAMT", "DSPAMOUNT"
+                ) or _first_text(node, "AMOUNT")
+                signed_amount = to_float(signed_text)
+
+                if signed_amount >= 0:
+                    debit, credit = signed_amount, 0.0
+                else:
+                    debit, credit = 0.0, abs(signed_amount)
+
+            rows.append(
+                {
+                    "name": pending_name,
+                    "debit": debit,
+                    "credit": credit,
+                }
+            )
+
+            pending_name = None
+
+    return rows
+
+
+def format_tally_date(value: str | None):
+    """
+    Convert Tally dates to YYYY-MM-DD.
+    """
     if not value:
         return None
 
@@ -1429,6 +1588,8 @@ def parse_ledger_voucher_details(
                     "voucher_type": voucher_type,
                     "voucher_number": voucher_number,
                     "reference_number": reference,
+                    # Keep actual Tally amount
+                    "tally_amount": round(to_float(amount_text), 2),
                     "debit": debit,
                     "credit": credit,
                     "running_balance": None,
@@ -2068,165 +2229,421 @@ def parse_stock_summary(xml_text: str):
         if not name:
             continue
 
-            seen_rows.add(row_key)
+        key = name.casefold()
 
-            # Read cost centre allocations attached
-            # to this ledger entry.
-            cost_centre_allocations = (
-                _cost_centre_allocations(
-                    ledger_entry
-                )
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        opening_balance = _stock_quantity_value(
+            _text(node, "OPENINGBALANCE")
+        )
+
+        closing_balance = _stock_quantity_value(
+            _text(node, "CLOSINGBALANCE")
+        )
+
+        opening_value = _stock_numeric_value(
+            _text(node, "OPENINGVALUE")
+        )
+
+        closing_value = _stock_numeric_value(
+            _text(node, "CLOSINGVALUE")
+        )
+
+        rate = _stock_numeric_value(
+            _text(node, "RATE")
+        )
+
+        rows.append(
+            {
+                "name": name,
+                "parent": _text(node, "PARENT"),
+                "base_units": _text(
+                    node,
+                    "BASEUNITS",
+                ),
+                "opening_quantity": opening_balance,
+                "opening_value": opening_value,
+                "closing_quantity": closing_balance,
+                "closing_value": closing_value,
+                "rate": rate,
+            }
+        )
+
+    return {
+        "success": True,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+# ============================================================
+# STOCK GROUPS
+# ============================================================
+
+def parse_stock_groups(xml_text: str):
+    root = parse_xml(xml_text)
+
+    rows = []
+    seen = set()
+
+    for node in root.findall(".//STOCKGROUP"):
+        name = _first_text(
+            node,
+            "NAME",
+        )
+
+        if not name:
+            continue
+
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        rows.append(
+            {
+                "name": name,
+                "parent": _text(
+                    node,
+                    "PARENT",
+                ),
+                "is_addable": _text(
+                    node,
+                    "ISADDABLE",
+                ),
+                "base_units": _text(
+                    node,
+                    "BASEUNITS",
+                ),
+            }
+        )
+
+    return {
+        "success": True,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+# ============================================================
+# STOCK CATEGORIES
+# ============================================================
+
+def parse_stock_categories(xml_text: str):
+    root = parse_xml(xml_text)
+
+    rows = []
+    seen = set()
+
+    for node in root.findall(".//STOCKCATEGORY"):
+        name = _first_text(
+            node,
+            "NAME",
+        )
+
+        if not name:
+            continue
+
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        rows.append(
+            {
+                "name": name,
+                "parent": _text(
+                    node,
+                    "PARENT",
+                ),
+            }
+        )
+
+    return {
+        "success": True,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+# ============================================================
+# GODOWNS
+# ============================================================
+
+def parse_godowns(xml_text: str):
+    root = parse_xml(xml_text)
+
+    rows = []
+    seen = set()
+
+    for node in root.findall(".//GODOWN"):
+        name = _first_text(
+            node,
+            "NAME",
+        )
+
+        if not name:
+            continue
+
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        rows.append(
+            {
+                "name": name,
+                "parent": _text(
+                    node,
+                    "PARENT",
+                ),
+                "is_internal": _text(
+                    node,
+                    "ISINTERNAL",
+                ),
+            }
+        )
+
+    return {
+        "success": True,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+# ============================================================
+# STOCK MOVEMENT
+# ============================================================
+
+def parse_stock_movement(xml_text: str):
+    root = parse_xml(xml_text)
+
+    rows = []
+    seen = set()
+
+    vouchers = root.findall(".//VOUCHER")
+
+    for voucher in vouchers:
+        voucher_date = format_tally_date(
+            _text(voucher, "DATE")
+        )
+
+        voucher_type = _text(
+            voucher,
+            "VOUCHERTYPENAME",
+        )
+
+        voucher_number = _text(
+            voucher,
+            "VOUCHERNUMBER",
+        )
+
+        guid = _text(
+            voucher,
+            "GUID",
+        )
+
+        reference = _text(
+            voucher,
+            "REFERENCE",
+        )
+
+        party = _first_text(
+            voucher,
+            "PARTYLEDGERNAME",
+            "PARTYNAME",
+        )
+
+        narration = _text(
+            voucher,
+            "NARRATION",
+        )
+
+        inventory_entries = _inventory_entry_nodes(
+            voucher
+        )
+
+        for entry in inventory_entries:
+            stock_item = _first_text(
+                entry,
+                "STOCKITEMNAME",
+                "STOCKITEM",
             )
-            entries.append({
-                "date": voucher_date,
-                "voucher_type": voucher_type,
-                "voucher_number": voucher_number,
 
-                # Keep party separately for customer and supplier analysis.
-                "party_name": party_name,
+            if not stock_item:
+                continue
 
-                "particulars": particulars,
-                "narration": narration,
-
-                # Keep inventory details for item-wise analysis.
-                "stock_items": stock_items,
-
-                "debit": round(debit, 2),
-                "credit": round(credit, 2),
-                
-                # Keep actual Tally cost centre allocations.
-                "cost_centre_allocations": cost_centre_allocations,
-            })
-
-    # ========================================================
-    # SORT TRANSACTIONS
-    # ========================================================
-
-    entries.sort(
-        key=lambda row: (
-            row["date"] or "",
-            row["voucher_type"] or "",
-            row["voucher_number"] or ""
-        )
-    )
-
-    # ========================================================
-    # RUNNING BALANCE
-    # ========================================================
-
-    book_opening = round(
-        opening_balance,
-        2
-    )
-
-    running_balance = book_opening
-
-    for entry in entries:
-
-        running_balance += (
-            entry["debit"]
-            -
-            entry["credit"]
-        )
-
-        entry["running_balance"] = round(
-            running_balance,
-            2
-        )
-
-    # ========================================================
-    # DISPLAY OPENING BALANCE
-    # ========================================================
-
-    display_opening = book_opening
-
-    if from_date:
-
-        preceding_entries = [
-            entry
-            for entry in entries
-            if (
-                entry["date"]
-                and entry["date"] < from_date
-            )
-        ]
-
-        if preceding_entries:
-
-            display_opening = (
-                preceding_entries[-1]
-                ["running_balance"]
+            quantity = _stock_quantity_value(
+                _text(entry, "ACTUALQTY")
+                or _text(entry, "BILLEDQTY")
+                or _text(entry, "QTY")
             )
 
-    # ========================================================
-    # DATE FILTER
-    # ========================================================
-
-    filtered_entries = entries
-
-    if from_date:
-
-        filtered_entries = [
-            entry
-            for entry in filtered_entries
-            if (
-                entry["date"]
-                and entry["date"] >= from_date
+            rate = _stock_numeric_value(
+                _text(entry, "RATE")
             )
-        ]
 
-    if to_date:
-
-        filtered_entries = [
-            entry
-            for entry in filtered_entries
-            if (
-                entry["date"]
-                and entry["date"] <= to_date
+            amount = _stock_numeric_value(
+                _text(entry, "AMOUNT")
             )
-        ]
 
-    # ========================================================
-    # CLOSING BALANCE
-    # ========================================================
+            godown = _first_text(
+                entry,
+                "GODOWNNAME",
+                "GODOWN",
+            )
 
-    if filtered_entries:
+            batch = _first_text(
+                entry,
+                "BATCHNAME",
+                "BATCH",
+            )
 
-        calculated_closing = (
-            filtered_entries[-1]
-            ["running_balance"]
+            key = (
+                guid,
+                voucher_date,
+                voucher_type,
+                voucher_number,
+                stock_item,
+                quantity,
+                amount,
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            rows.append(
+                {
+                    "date": voucher_date,
+                    "guid": guid,
+                    "voucher_type": voucher_type,
+                    "voucher_number": voucher_number,
+                    "reference": reference,
+                    "party": party,
+                    "stock_item": stock_item,
+                    "quantity": quantity,
+                    "rate": rate,
+                    "amount": amount,
+                    "godown": godown,
+                    "batch": batch,
+                    "narration": narration,
+                }
+            )
+
+    return {
+        "success": True,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+# ============================================================
+# INVENTORY REGISTER
+# ============================================================
+
+def parse_inventory_register(xml_text: str):
+    root = parse_xml(xml_text)
+
+    rows = []
+    seen = set()
+
+    for voucher in root.findall(".//VOUCHER"):
+        voucher_date = format_tally_date(
+            _text(voucher, "DATE")
         )
 
-    else:
-
-        calculated_closing = (
-            display_opening
+        guid = _text(
+            voucher,
+            "GUID",
         )
 
-    # Only use Tally's closing balance when
-    # there is no date filtering.
-    if (
-        not filtered_entries
-        and closing_balance is not None
-        and not from_date
-        and not to_date
-    ):
-
-        final_closing = round(
-            closing_balance,
-            2
+        voucher_type = _text(
+            voucher,
+            "VOUCHERTYPENAME",
         )
 
-    else:
-
-        final_closing = round(
-            calculated_closing,
-            2
+        voucher_number = _text(
+            voucher,
+            "VOUCHERNUMBER",
         )
 
-    # ========================================================
-    # RETURN
-    # ========================================================
+        party = _first_text(
+            voucher,
+            "PARTYLEDGERNAME",
+            "PARTYNAME",
+        )
+
+        narration = _text(
+            voucher,
+            "NARRATION",
+        )
+
+        for entry in _inventory_entry_nodes(
+            voucher
+        ):
+            stock_item = _first_text(
+                entry,
+                "STOCKITEMNAME",
+                "STOCKITEM",
+            )
+
+            if not stock_item:
+                continue
+
+            quantity = _stock_quantity_value(
+                _text(entry, "ACTUALQTY")
+                or _text(entry, "BILLEDQTY")
+                or _text(entry, "QTY")
+            )
+
+            rate = _stock_numeric_value(
+                _text(entry, "RATE")
+            )
+
+            amount = _stock_numeric_value(
+                _text(entry, "AMOUNT")
+            )
+
+            key = (
+                guid,
+                voucher_date,
+                voucher_type,
+                voucher_number,
+                stock_item,
+                quantity,
+                amount,
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            rows.append(
+                {
+                    "date": voucher_date,
+                    "guid": guid,
+                    "voucher_type": voucher_type,
+                    "voucher_number": voucher_number,
+                    "party": party,
+                    "stock_item": stock_item,
+                    "quantity": quantity,
+                    "rate": rate,
+                    "amount": amount,
+                    "narration": narration,
+                }
+            )
 
     return {
         "success": True,
