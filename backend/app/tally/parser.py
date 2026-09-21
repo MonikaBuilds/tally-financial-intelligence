@@ -9,6 +9,33 @@ from app.financial.calculations import normalize_account_name
 # XML CLEANING / BASIC HELPERS
 # ============================================================
 
+_INVALID_CHAR_REF = re.compile(r"&#(?:x([0-9A-Fa-f]+)|([0-9]+));")
+
+
+def _is_valid_xml_char(code_point: int) -> bool:
+    return (
+        code_point in (0x9, 0xA, 0xD)
+        or 0x20 <= code_point <= 0xD7FF
+        or 0xE000 <= code_point <= 0xFFFD
+        or 0x10000 <= code_point <= 0x10FFFF
+    )
+
+
+def _drop_invalid_char_ref(match: re.Match) -> str:
+    hex_digits, decimal_digits = match.groups()
+
+    code_point = (
+        int(hex_digits, 16)
+        if hex_digits is not None
+        else int(decimal_digits)
+    )
+
+    if _is_valid_xml_char(code_point):
+        return match.group(0)
+
+    return ""
+
+
 def clean_tally_xml(xml_text: str) -> str:
     """
     Clean common invalid XML characters returned by Tally.
@@ -23,12 +50,14 @@ def clean_tally_xml(xml_text: str) -> str:
         xml_text,
     )
 
-    # Tally sometimes returns invalid numeric references
-    xml_text = re.sub(
-        r"&#x(?:0*[0-8BCE-FbceFf]);",
-        "",
+    # Tally sometimes returns numeric references to characters XML
+    # forbids, e.g. "<GSTCLASS>&#4; Not Applicable</GSTCLASS>" on
+    # inventory entries. Drop them all in one pass (decimal and hex) -
+    # a large voucher export can contain hundreds, far more than the
+    # one-at-a-time repair loop in parse_xml() is allowed to fix.
+    xml_text = _INVALID_CHAR_REF.sub(
+        _drop_invalid_char_ref,
         xml_text,
-        flags=re.IGNORECASE,
     )
 
     # Make UDF tags XML-safe

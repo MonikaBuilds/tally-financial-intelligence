@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route } from 'react-router'
+import { Routes, Route, Navigate } from 'react-router'
 
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
@@ -18,11 +18,19 @@ import TallyStatus from './pages/TallyStatus'
 import Chatbot from './pages/Chatbot'
 import Login from './pages/Login'
 import UserManagement from './pages/UserManagement'
+import ReportsIndex from './pages/ReportsIndex'
 
 import {
   getAccessToken,
   clearAccessToken,
 } from './api/client'
+
+// Old paths that no longer have their own route. The other old
+// top-level report paths (/ledger, /profit-loss, ...) still render
+// directly above, so they are not redirected.
+const LEGACY_REPORT_REDIRECTS = [
+  ['/inventory', '/reports/inventory'],
+]
 
 
 function App() {
@@ -95,6 +103,7 @@ function App() {
           element={<TallyStatus />}
         />
         <Route path="/chatbot" element={<Chatbot />} />
+        <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/tally-status" element={<TallyStatus />} />
 
         <Route path="/reports" element={<ReportsIndex />} />
