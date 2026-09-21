@@ -1,5 +1,7 @@
-import { NavLink } from 'react-router'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router'
 import ChatIcon from '../common/ChatIcon'
+import { ALL_REPORTS, REPORT_ROUTES } from '../../reportsConfig'
 
 const NAV_LINKS = [
   {

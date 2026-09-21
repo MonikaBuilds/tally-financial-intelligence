@@ -440,6 +440,10 @@ h1, h2, h3 {
 
 /* Table */
 
+.data-table-scroll {
+  overflow-x: auto;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -642,6 +646,123 @@ h1, h2, h3 {
   color: var(--negative);
   font-size: 13px;
   margin-top: 8px;
+}
+
+.form-field--quick-range {
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* Clickable table rows (drill-down from Ledger -> Month -> Voucher) */
+
+.data-table-row--clickable {
+  cursor: pointer;
+}
+
+.data-table-row--clickable:hover {
+  background: var(--accent-bg);
+}
+
+.data-table-row--clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Breadcrumbs */
+
+.breadcrumbs {
+  margin-bottom: 12px;
+}
+
+.breadcrumbs a,
+.breadcrumb-link {
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.breadcrumbs a:hover,
+.breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+/* Voucher detail (Tally "Accounting Voucher Alteration" style) */
+
+.voucher-account-box {
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.voucher-account-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.voucher-account-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.voucher-account-amount {
+  font-size: 14px;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.voucher-particulars {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.voucher-particulars-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.voucher-particular-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.voucher-particular-row:last-child {
+  border-bottom: none;
+}
+
+.voucher-particular-name {
+  color: var(--text-h);
+}
+
+.voucher-particular-amount {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.voucher-narration {
+  font-style: italic;
+}
+
+.status-cancelled {
+  color: var(--negative);
+  font-weight: 600;
 }
 
 .ledger-summary-note {

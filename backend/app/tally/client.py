@@ -11,6 +11,15 @@ from app.core.config import settings
 class TallyClient:
     _shared_client: httpx.AsyncClient | None = None
 
+    # TallyPrime's built-in HTTP-XML server processes one request at a
+    # time. Firing several report calls close together (e.g. the
+    # dashboard loading alongside Ledger List / Balance Sheet /
+    # Receivables) makes Tally queue them internally, and the later
+    # ones blow past our client timeout even though Tally itself is
+    # up and working. This lock serializes our own outgoing requests
+    # so they queue politely on our side instead.
+    _lock = asyncio.Lock()
+
     def __init__(self):
         self.base_url = settings.tally_url
 
@@ -167,13 +176,21 @@ class TallyClient:
                 f"in {duration:.2f}s"
             )
 
-            response.raise_for_status()
+                response = await client.post(
+                    self.base_url,
+                    content=xml_payload,
+                    headers={
+                        "Content-Type": "text/xml"
+                    }
+                )
 
-            xml_response = response.text
+                response.raise_for_status()
 
-            self._raise_for_tally_error(
-                xml_response
-            )
+                xml_response = response.text
+
+                self._raise_for_tally_error(
+                    xml_response
+                )
 
             return xml_response
 
