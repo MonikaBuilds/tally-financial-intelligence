@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -6,6 +7,9 @@ from google import genai
 from google.genai import errors, types
 
 from app.chatbot.tool_registry import TOOL_DEFINITIONS
+
+
+logger = logging.getLogger(__name__)
 
 
 load_dotenv()
@@ -108,6 +112,12 @@ async def select_tool(
 
         error_text = str(exc).lower()
 
+        logger.error(
+            "Gemini ClientError: status=%s error=%s",
+            status_code,
+            exc,
+        )
+
         if (
             status_code == 429
             or "resource_exhausted" in error_text
@@ -139,14 +149,24 @@ async def select_tool(
             "error": "model_error",
         }
 
-    except errors.ServerError:
+    except errors.ServerError as exc:
+        logger.exception(
+            "Gemini ServerError: %s",
+            exc,
+        )
+
         return {
             "tool_name": None,
             "arguments": {},
             "error": "model_unavailable",
         }
 
-    except Exception:
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Gemini error: %s",
+            exc,
+        )
+
         return {
             "tool_name": None,
             "arguments": {},

@@ -44,6 +44,10 @@ const NAV_LINKS = [
     to: '/tally-status',
     label: 'Tally Status',
   },
+  {
+    to: '/admin/users',
+    label: 'User Management',
+  },
 ]
 
 function getCurrentUser() {

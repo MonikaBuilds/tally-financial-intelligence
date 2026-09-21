@@ -15,7 +15,8 @@ async def test_payables_question_uses_payables_tool(
 
     async def fake_execute_tool(
         tool_name,
-        arguments
+        arguments,
+        user_id=None
     ):
         assert tool_name == "get_payables"
 
@@ -63,7 +64,8 @@ async def test_highest_payable_response(
 
     async def fake_execute_tool(
         tool_name,
-        arguments
+        arguments,
+        user_id=None,
     ):
         return {
             "success": True,
@@ -76,6 +78,14 @@ async def test_highest_payable_response(
                 "overdue_days": 10
             }
         }
+
+    # Force this unit test to use the mocked AI tool selector
+    # instead of the real local intent router.
+    monkeypatch.setattr(
+        chatbot_service,
+        "detect_local_intent",
+        lambda message: None,
+    )
 
     monkeypatch.setattr(
         chatbot_service,
@@ -111,7 +121,8 @@ async def test_company_name_is_passed_to_tool(
 
     async def fake_execute_tool(
         tool_name,
-        arguments
+        arguments,
+        user_id=None,
     ):
         assert arguments["company_name"] == "Demo Company"
 
@@ -157,7 +168,8 @@ async def test_tally_failure_does_not_hallucinate(
 
     async def fake_execute_tool(
         tool_name,
-        arguments
+        arguments,
+        user_id=None,
     ):
         return {
             "success": False,

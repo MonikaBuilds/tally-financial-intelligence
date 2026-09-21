@@ -1,9 +1,13 @@
 import os
-import sqlite3
 from dataclasses import dataclass
-from pathlib import Path
+
+import mysql.connector
+from dotenv import load_dotenv
 
 from app.security.passwords import hash_password, verify_password
+
+
+load_dotenv()
 
 
 @dataclass(frozen=True)
@@ -14,70 +18,56 @@ class StoredUser:
     is_active: bool
 
 
-def _get_db_path() -> Path:
-    configured_path = os.getenv(
-        "CHAT_AUTH_DB_PATH",
-        "data/chat_auth.db",
+def _connect():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT", "3306")),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
     )
-
-    db_path = Path(configured_path)
-
-    if not db_path.is_absolute():
-        backend_root = Path(__file__).resolve().parents[2]
-        db_path = backend_root / db_path
-
-    db_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    return db_path
-
-
-def _connect() -> sqlite3.Connection:
-    connection = sqlite3.connect(
-        _get_db_path()
-    )
-
-    connection.row_factory = sqlite3.Row
-
-    connection.execute(
-        "PRAGMA foreign_keys = ON"
-    )
-
-    return connection
 
 
 def initialize_user_store() -> None:
-    with _connect() as connection:
-        connection.execute(
+    connection = _connect()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
-                user_id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                is_active INTEGER NOT NULL DEFAULT 1
+                user_id VARCHAR(100) PRIMARY KEY,
+                username VARCHAR(255) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE
             )
             """
         )
 
-        connection.execute(
+        cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_companies (
-                user_id TEXT NOT NULL,
-                company_name TEXT NOT NULL,
+                user_id VARCHAR(100) NOT NULL,
+                company_name VARCHAR(255) NOT NULL,
 
                 PRIMARY KEY (
                     user_id,
                     company_name
                 ),
 
-                FOREIGN KEY (user_id)
+                CONSTRAINT fk_user_companies_user
+                    FOREIGN KEY (user_id)
                     REFERENCES users(user_id)
                     ON DELETE CASCADE
             )
             """
         )
+
+        connection.commit()
+
+    finally:
+        cursor.close()
+        connection.close()
 
 
 def create_user(
@@ -116,8 +106,11 @@ def create_user(
 
     password_hash = hash_password(password)
 
-    with _connect() as connection:
-        connection.execute(
+    connection = _connect()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
             """
             INSERT INTO users (
                 user_id,
@@ -125,7 +118,7 @@ def create_user(
                 password_hash,
                 is_active
             )
-            VALUES (?, ?, ?, 1)
+            VALUES (%s, %s, %s, 1)
             """,
             (
                 clean_user_id,
@@ -134,25 +127,76 @@ def create_user(
             ),
         )
 
-        connection.executemany(
+        cursor.executemany(
             """
             INSERT INTO user_companies (
                 user_id,
                 company_name
             )
-            VALUES (?, ?)
+            VALUES (%s, %s)
             """,
             [
                 (
                     clean_user_id,
                     company_name,
                 )
-                for company_name
-                in clean_companies
+                for company_name in clean_companies
             ],
         )
 
+        connection.commit()
 
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        cursor.close()
+        connection.close()
+
+def delete_user(
+    user_id: str,
+) -> bool:
+    """
+    Delete a user from MySQL.
+
+    Related company, role, and permission assignments
+    are removed through foreign-key cascade rules.
+
+    Returns True when a user was deleted.
+    Returns False when the user does not exist.
+    """
+    clean_user_id = user_id.strip()
+
+    if not clean_user_id:
+        return False
+
+    connection = _connect()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            DELETE FROM users
+            WHERE user_id = %s
+            """,
+            (clean_user_id,),
+        )
+
+        deleted = cursor.rowcount > 0
+
+        connection.commit()
+
+        return deleted
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        cursor.close()
+        connection.close()
+        
 def get_user_by_username(
     username: str,
 ) -> StoredUser | None:
@@ -161,8 +205,11 @@ def get_user_by_username(
     if not clean_username:
         return None
 
-    with _connect() as connection:
-        row = connection.execute(
+    connection = _connect()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
             """
             SELECT
                 user_id,
@@ -170,10 +217,16 @@ def get_user_by_username(
                 password_hash,
                 is_active
             FROM users
-            WHERE username = ?
+            WHERE username = %s
             """,
             (clean_username,),
-        ).fetchone()
+        )
+
+        row = cursor.fetchone()
+
+    finally:
+        cursor.close()
+        connection.close()
 
     if row is None:
         return None
@@ -185,20 +238,64 @@ def get_user_by_username(
         is_active=bool(row["is_active"]),
     )
 
+def get_all_users() -> list[dict]:
+    """
+    Return all users from MySQL.
+
+    Password hashes are intentionally not returned.
+    """
+    connection = _connect()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
+            """
+            SELECT
+                user_id,
+                username,
+                is_active
+            FROM users
+            ORDER BY username
+            """
+        )
+
+        rows = cursor.fetchall()
+
+    finally:
+        cursor.close()
+        connection.close()
+
+    return [
+        {
+            "user_id": row["user_id"],
+            "username": row["username"],
+            "is_active": bool(row["is_active"]),
+        }
+        for row in rows
+    ]
 
 def get_user_companies(
     user_id: str,
 ) -> tuple[str, ...]:
-    with _connect() as connection:
-        rows = connection.execute(
+    connection = _connect()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute(
             """
             SELECT company_name
             FROM user_companies
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY company_name
             """,
             (user_id,),
-        ).fetchall()
+        )
+
+        rows = cursor.fetchall()
+
+    finally:
+        cursor.close()
+        connection.close()
 
     return tuple(
         row["company_name"]
@@ -230,6 +327,7 @@ def authenticate_user(
 
     return user, companies
 
+
 def update_user_password(
     username: str,
     new_password: str,
@@ -246,12 +344,15 @@ def update_user_password(
 
     password_hash = hash_password(new_password)
 
-    with _connect() as connection:
-        cursor = connection.execute(
+    connection = _connect()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
             """
             UPDATE users
-            SET password_hash = ?
-            WHERE username = ?
+            SET password_hash = %s
+            WHERE username = %s
             """,
             (
                 password_hash,
@@ -263,3 +364,13 @@ def update_user_password(
             raise ValueError(
                 "user does not exist"
             )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        cursor.close()
+        connection.close()

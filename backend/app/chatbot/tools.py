@@ -1,5 +1,6 @@
 from app.chatbot.resolver import resolve_party_name, resolve_name
 from datetime import date
+from app.tally.parser import to_optional_float
 from calendar import monthrange
 import re
 import asyncio
@@ -28,6 +29,7 @@ from app.financial.service import (
 from app.financial.calculations import (
     build_dashboard_financials
 )
+from app.tally.parser import to_optional_float
 
 
 def _success(data: dict) -> dict:
@@ -1070,16 +1072,6 @@ async def get_ledger_report_tool(
 
     entries = report.get("entries", [])
 
-    total_debit = sum(
-        entry.get("debit", 0.0)
-        for entry in entries
-    )
-
-    total_credit = sum(
-        entry.get("credit", 0.0)
-        for entry in entries
-    )
-
     return _success({
         "ledger_name": report.get(
             "ledger_name",
@@ -1087,14 +1079,10 @@ async def get_ledger_report_tool(
         ),
         "opening_balance": report.get(
             "opening_balance",
-            0.0
         ),
         "closing_balance": report.get(
             "closing_balance",
-            0.0
         ),
-        "total_debit": round(total_debit, 2),
-        "total_credit": round(total_credit, 2),
         "entry_count": len(entries),
         "entries": entries,
         "from_date": (
@@ -3701,24 +3689,19 @@ async def get_customer_statement_tool(
 
         if voucher_type in excluded_voucher_types:
             continue
-        
-        transactions.append(
-            entry
-        )
 
-        opening_balance = float(
-            report.get(
-                "opening_balance",
-                0,
-            ) or 0
-        )
+        transactions.append(entry)
 
-        transactions, closing_balance = (
-            _recalculate_statement_balances(
-                transactions=transactions,
-                opening_balance=opening_balance,
-            )
+    opening_balance = float(
+        report.get("opening_balance", 0) or 0
+    )
+
+    transactions, closing_balance = (
+        _recalculate_statement_balances(
+            transactions=transactions,
+            opening_balance=opening_balance,
         )
+    )
     return _success({
         "party_name": resolved_name,
         "party_type": "customer",
@@ -3808,6 +3791,13 @@ async def get_supplier_statement_tool(
 
     resolved_name = resolution.value
 
+    print(
+        "SUPPLIER NAME DEBUG:",
+        "requested=", repr(party_name),
+        "| available=", [repr(name) for name in available_names],
+        "| resolved=", repr(resolved_name),
+    )
+
     report = await fetch_ledger_report(
         ledger_name=resolved_name,
         company_name=company_name,
@@ -3840,22 +3830,18 @@ async def get_supplier_statement_tool(
         if voucher_type in excluded_voucher_types:
             continue
 
-        transactions.append(
-            entry
-        )
-        opening_balance = float(
-            report.get(
-                "opening_balance",
-                0,
-            ) or 0
-        )
+        transactions.append(entry)
 
-        transactions, closing_balance = (
-            _recalculate_statement_balances(
-                transactions=transactions,
-                opening_balance=opening_balance,
-            )
+    opening_balance = to_optional_float(
+        report.get("opening_balance")
+    )
+
+    transactions, closing_balance = (
+        _recalculate_statement_balances(
+            transactions=transactions,
+            opening_balance=opening_balance,
         )
+    )
     return _success({
         "party_name": resolved_name,
         "party_type": "supplier",
@@ -4510,16 +4496,14 @@ async def get_ledger_transactions_tool(
         "opening_balance": float(
             report.get(
                 "opening_balance",
-                0,
             )
-            or 0
         ),
         "closing_balance": float(
             report.get(
                 "closing_balance",
-                0,
+            
             )
-            or 0
+
         ),
         "count": len(entries),
         "transactions": entries,

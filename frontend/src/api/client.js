@@ -88,6 +88,18 @@ export async function apiPost(path, body) {
   return handleResponse(response);
 }
 
+export async function apiDelete(path) {
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(),
+    }
+  );
+
+  return handleResponse(response);
+}
+
 export async function downloadFile(path, filename = "download") {
   const response = await fetch(
     `${API_BASE_URL}${path}`,

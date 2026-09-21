@@ -84,7 +84,38 @@ def to_float(value):
     except (TypeError, ValueError):
         return 0.0
 
+def to_optional_float(value: str | None) -> float | None:
+    """
+    Parse a financial value supplied by Tally.
 
+    A genuine Tally value such as "0.00" remains 0.0.
+    Missing, blank, or invalid values remain unavailable as None.
+    """
+    if value is None:
+        return None
+
+    value = str(value).strip()
+
+    if not value:
+        return None
+
+    normalized = value.replace(",", "").replace(" ", "")
+
+    upper = normalized.upper()
+
+    if upper.endswith("DR") or upper.endswith("CR"):
+        normalized = normalized[:-2]
+
+    normalized = normalized.strip()
+
+    if not normalized:
+        return None
+
+    try:
+        return float(normalized)
+    except (TypeError, ValueError):
+        return None
+    
 def format_tally_date(value):
     if not value:
         return None
@@ -483,13 +514,13 @@ def parse_ledger_list(xml_response: str) -> list[dict]:
             or ""
         ).strip()
 
-        opening_balance = to_float(
+        opening_balance = to_optional_float(
             ledger.findtext(
                 "OPENINGBALANCE"
             )
         )
 
-        closing_balance = to_float(
+        closing_balance = to_optional_float(
             ledger.findtext(
                 "CLOSINGBALANCE"
             )
@@ -498,13 +529,15 @@ def parse_ledger_list(xml_response: str) -> list[dict]:
         ledgers.append({
             "name": name,
             "parent": parent,
-            "opening_balance": round(
-                opening_balance,
-                2
+            "opening_balance": (
+                round(opening_balance, 2)
+                if opening_balance is not None
+                else None
             ),
-            "closing_balance": round(
-                closing_balance,
-                2
+            "closing_balance": (
+                round(closing_balance, 2)
+                if closing_balance is not None
+                else None
             ),
         })
 
@@ -1050,7 +1083,9 @@ def parse_ledger_report(
 
                 # Keep inventory details for item-wise analysis.
                 "stock_items": stock_items,
-
+                # Keep actual Tally amount 
+                "tally_amount": round(amount, 2),
+                
                 "debit": round(debit, 2),
                 "credit": round(credit, 2),
                 

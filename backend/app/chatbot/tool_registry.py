@@ -1974,39 +1974,6 @@ TOOL_DEFINITIONS = [
     },
 },
 
-# get_invoice_status
-{
-    "name": "get_invoice_status",
-    "description": (
-        "Search for a specific invoice or bill reference in the "
-        "current Tally receivable and payable outstanding data. "
-        "Use when the user asks whether an invoice is outstanding, "
-        "overdue, pending, or asks for the current status of a "
-        "specific invoice or bill."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "invoice_reference": {
-                "type": "string",
-                "description": (
-                    "Exact invoice or bill reference mentioned "
-                    "by the user."
-                ),
-            },
-            "company_name": {
-                "type": "string",
-                "description": (
-                    "Optional Tally company name."
-                ),
-            },
-        },
-        "required": [
-            "invoice_reference",
-        ],
-    },
-},
-
 # get_bank_transactions
 
 {

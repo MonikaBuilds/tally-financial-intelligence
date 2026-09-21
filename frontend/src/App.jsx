@@ -13,6 +13,7 @@ import BalanceSheet from './pages/BalanceSheet'
 import TallyStatus from './pages/TallyStatus'
 import Chatbot from './pages/Chatbot'
 import Login from './pages/Login'
+import UserManagement from './pages/UserManagement'
 
 import {
   getAccessToken,
@@ -45,28 +46,60 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout onLogout={handleLogout} />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/ledger" element={<Ledger />} />
-        <Route path="/profit-loss" element={<ProfitLoss />} />
-        <Route path="/receivables" element={<Receivables />} />
-        <Route path="/payables" element={<Payables />} />
+        <Route
+          path="/"
+          element={<Dashboard />}
+        />
+
+        <Route
+          path="/ledger"
+          element={<Ledger />}
+        />
+
+        <Route
+          path="/profit-loss"
+          element={<ProfitLoss />}
+        />
+
+        <Route
+          path="/receivables"
+          element={<Receivables />}
+        />
+
+        <Route
+          path="/payables"
+          element={<Payables />}
+        />
+
         <Route
           path="/pending-invoices"
           element={<PendingInvoices />}
         />
+
         <Route
           path="/trial-balance"
           element={<TrialBalance />}
         />
+
         <Route
           path="/balance-sheet"
           element={<BalanceSheet />}
         />
+
         <Route
           path="/tally-status"
           element={<TallyStatus />}
         />
-        <Route path="/chatbot" element={<Chatbot />} />
+
+        <Route
+          path="/chatbot"
+          element={<Chatbot />}
+        />
+
+        <Route
+          path="/admin/users"
+          element={<UserManagement />}
+        />
       </Route>
     </Routes>
   )

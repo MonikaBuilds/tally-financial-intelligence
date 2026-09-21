@@ -9,3 +9,5 @@ openpyxl
 reportlab
 
 PyJWT 
+#database
+mysql-connector-python

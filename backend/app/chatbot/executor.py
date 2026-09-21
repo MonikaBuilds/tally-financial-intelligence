@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any
 
 from app.chatbot.tool_registry import TOOL_FUNCTIONS
+from app.security.permissions import can_execute_tool
 
 
 CHATBOT_TOOL_TIMEOUT = 20.0
@@ -165,7 +166,14 @@ def _prepare_arguments(
 async def execute_tool(
     tool_name: str,
     arguments: dict[str, Any] | None = None,
+    user_id: str | None = None,
 ) -> dict:
+    # -------------------------------------------------
+    # 1. READ-ONLY / REGISTERED TOOL CHECK
+    # -------------------------------------------------
+    # Only tools registered in TOOL_FUNCTIONS can run.
+    # This prevents unsupported or write operations
+    # such as update/delete operations from executing.
     if tool_name not in TOOL_FUNCTIONS:
         return {
             "success": False,
@@ -178,7 +186,38 @@ async def execute_tool(
             "data": None,
         }
 
+    # -------------------------------------------------
+    # 2. RBAC PERMISSION CHECK
+    # -------------------------------------------------
+    # Authorization happens before argument processing,
+    # semaphore acquisition, or any Tally tool execution.
+    #
+    # Admin:
+    #   Can access all mapped tools.
+    #
+    # Normal user:
+    #   Must have the permission mapped to this tool.
+    #
+    # Missing user / unmapped tool:
+    #   Access is denied (fail closed).
+    if not can_execute_tool(
+        user_id=user_id,
+        tool_name=tool_name,
+    ):
+        return {
+            "success": False,
+            "source": "authorization",
+            "message": (
+                "You are not authorized to access "
+                "this type of financial data."
+            ),
+            "data": None,
+        }
+
     try:
+        # ---------------------------------------------
+        # 3. VALIDATE AND PREPARE ARGUMENTS
+        # ---------------------------------------------
         prepared_arguments = (
             _prepare_arguments(
                 arguments
@@ -191,6 +230,9 @@ async def execute_tool(
             ]
         )
 
+        # ---------------------------------------------
+        # 4. CONCURRENCY PROTECTION
+        # ---------------------------------------------
         try:
             await asyncio.wait_for(
                 _tool_semaphore.acquire(),
@@ -209,6 +251,9 @@ async def execute_tool(
                 "data": None,
             }
 
+        # ---------------------------------------------
+        # 5. EXECUTE AUTHORIZED TALLY TOOL
+        # ---------------------------------------------
         try:
             result = await asyncio.wait_for(
                 tool_function(
@@ -220,6 +265,9 @@ async def execute_tool(
         finally:
             _tool_semaphore.release()
 
+        # ---------------------------------------------
+        # 6. VALIDATE TOOL RESPONSE
+        # ---------------------------------------------
         if not isinstance(
             result,
             dict,

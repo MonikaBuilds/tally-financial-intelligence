@@ -40,6 +40,14 @@ async def test_tool_concurrency_is_bounded(
         fake_tool,
     )
 
+    # This test verifies concurrency only.
+    # Permission behavior is tested separately.
+    monkeypatch.setattr(
+        executor,
+        "can_execute_tool",
+        lambda user_id, tool_name: True,
+    )
+
     # Use a small limit so the test is easy
     # and fast to verify.
     test_limit = 2
@@ -53,7 +61,8 @@ async def test_tool_concurrency_is_bounded(
     results = await asyncio.gather(
         *[
             executor.execute_tool(
-                "test_concurrent_tool"
+                "test_concurrent_tool",
+                user_id="test-user",
             )
             for _ in range(6)
         ]

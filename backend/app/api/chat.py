@@ -86,6 +86,7 @@ async def chat(
             message=request.message,
             company_name=company_name,
             allowed_companies=current_user.allowed_companies,
+            user_id=current_user.user_id,
         )
 
         return ChatResponse(
