@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Bot, Loader2, Send, User } from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
 import { apiPost } from '../api/client'
 
@@ -139,19 +140,37 @@ function Chatbot() {
               key={index}
               className={
                 message.role === 'user'
-                  ? 'chat-bubble chat-bubble--user'
-                  : message.blocked
-                    ? 'chat-bubble chat-bubble--assistant chat-bubble--blocked'
-                    : 'chat-bubble chat-bubble--assistant'
+                  ? 'chat-message chat-message--user'
+                  : 'chat-message'
               }
             >
-              {message.content}
+              <span className="chat-avatar" aria-hidden="true">
+                {message.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+              </span>
+
+              <div
+                className={
+                  message.role === 'user'
+                    ? 'chat-bubble chat-bubble--user'
+                    : message.blocked
+                      ? 'chat-bubble chat-bubble--assistant chat-bubble--blocked'
+                      : 'chat-bubble chat-bubble--assistant'
+                }
+              >
+                {message.content}
+              </div>
             </div>
           ))}
 
           {loading && (
-            <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
-              Thinking...
+            <div className="chat-message">
+              <span className="chat-avatar" aria-hidden="true">
+                <Bot size={16} />
+              </span>
+              <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
+                <Loader2 size={14} className="spin" />
+                Thinking...
+              </div>
             </div>
           )}
 
@@ -205,6 +224,7 @@ function Chatbot() {
               !input.trim()
             }
           >
+            <Send size={16} />
             Send
           </button>
         </form>

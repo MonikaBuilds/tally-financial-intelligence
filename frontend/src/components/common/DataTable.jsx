@@ -1,6 +1,13 @@
+import { Inbox } from 'lucide-react'
+
 function DataTable({ columns, rows, onRowClick, isRowClickable }) {
   if (!rows || rows.length === 0) {
-    return <p className="empty-state">No records found.</p>
+    return (
+      <div className="empty-state">
+        <Inbox size={28} strokeWidth={1.5} />
+        <span>No records found.</span>
+      </div>
+    )
   }
 
   function rowIsClickable(row) {
@@ -15,13 +22,17 @@ function DataTable({ columns, rows, onRowClick, isRowClickable }) {
     }
   }
 
+  const cellClass = (column) => (column.align === 'right' ? 'is-numeric' : undefined)
+
   return (
     <div className="data-table-scroll">
       <table className="data-table">
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column.key}>{column.label}</th>
+              <th key={column.key} className={cellClass(column)}>
+                {column.label}
+              </th>
             ))}
           </tr>
         </thead>
@@ -39,7 +50,7 @@ function DataTable({ columns, rows, onRowClick, isRowClickable }) {
                 role={clickable ? 'button' : undefined}
               >
                 {columns.map((column) => (
-                  <td key={column.key}>
+                  <td key={column.key} className={cellClass(column)}>
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}

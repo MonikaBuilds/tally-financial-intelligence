@@ -16,6 +16,7 @@ const COLUMNS = [
   {
     key: 'outstanding_amount',
     label: 'Outstanding',
+    align: 'right',
     render: (row) => formatCurrency(row.outstanding_amount),
   },
   { key: 'status', label: 'Status', render: (row) => <StatusPill status={row.status} /> },

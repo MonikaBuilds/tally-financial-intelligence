@@ -4,6 +4,16 @@ import {
   apiPost,
   apiDelete,
 } from '../api/client'
+import {
+  CheckCircle2,
+  KeyRound,
+  Loader2,
+  Minus,
+  Plus,
+  ShieldCheck,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
 import Card from '../components/common/Card'
 import Loader from '../components/common/Loader'
@@ -176,7 +186,10 @@ function UserManagement() {
 
   return (
     <>
-      <PageHeader title="User Management" />
+      <PageHeader
+        title="User Management"
+        subtitle="Create users and control which parts of Tally they can access"
+      />
 
       {loading && <Loader />}
 
@@ -185,31 +198,21 @@ function UserManagement() {
       )}
 
       {message && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            border: '1px solid #d1d5db',
-            borderRadius: 6,
-          }}
-        >
-          {message}
+        <div className="success-message" role="status">
+          <CheckCircle2 size={18} />
+          <span>{message}</span>
         </div>
       )}
 
       {!loading && (
         <>
-          <Card title="Create New User">
+          <Card
+            title="Create New User"
+            subtitle="New users can sign in immediately with these credentials"
+          >
             <form onSubmit={handleCreateUser}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns:
-                    'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: 16,
-                }}
-              >
-                <div>
+              <div className="form-grid">
+                <div className="form-field">
                   <label htmlFor="user_id">
                     User ID
                   </label>
@@ -222,15 +225,10 @@ function UserManagement() {
                     onChange={handleNewUserChange}
                     required
                     disabled={creatingUser}
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: 10,
-                    }}
                   />
                 </div>
 
-                <div>
+                <div className="form-field">
                   <label htmlFor="username">
                     Username
                   </label>
@@ -243,15 +241,10 @@ function UserManagement() {
                     onChange={handleNewUserChange}
                     required
                     disabled={creatingUser}
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: 10,
-                    }}
                   />
                 </div>
 
-                <div>
+                <div className="form-field">
                   <label htmlFor="password">
                     Password
                   </label>
@@ -266,15 +259,14 @@ function UserManagement() {
                     minLength={8}
                     autoComplete="new-password"
                     disabled={creatingUser}
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: 10,
-                    }}
                   />
+
+                  <p className="form-hint">
+                    At least 8 characters.
+                  </p>
                 </div>
 
-                <div>
+                <div className="form-field">
                   <label htmlFor="companies">
                     Companies
                   </label>
@@ -288,20 +280,15 @@ function UserManagement() {
                     required
                     disabled={creatingUser}
                     placeholder="Enter company name"
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: 10,
-                    }}
                   />
 
-                  <p className="card-note">
+                  <p className="form-hint">
                     For multiple companies, separate
                     names with commas.
                   </p>
                 </div>
 
-                <div>
+                <div className="form-field">
                   <label htmlFor="role_name">
                     Role
                   </label>
@@ -313,11 +300,6 @@ function UserManagement() {
                     onChange={handleNewUserChange}
                     required
                     disabled={creatingUser}
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: 10,
-                    }}
                   >
                     <option value="">
                       Select a role
@@ -335,12 +317,17 @@ function UserManagement() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 16 }}>
+              <div className="form-actions">
                 <button
                   type="submit"
                   className="btn"
                   disabled={creatingUser}
                 >
+                  {creatingUser ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <UserPlus size={16} />
+                  )}
                   {creatingUser
                     ? 'Creating...'
                     : 'Create User'}
@@ -351,62 +338,69 @@ function UserManagement() {
 
           {!error && (
             <>
-              <Card title="Users">
+              <Card
+                title="Users"
+                subtitle={`${users.length} ${users.length === 1 ? 'user' : 'users'}`}
+              >
                 {users.length === 0 ? (
-                  <p className="card-note">
-                    No users found.
-                  </p>
+                  <div className="empty-state">
+                    <Users size={28} strokeWidth={1.5} />
+                    <span>No users found.</span>
+                  </div>
                 ) : (
-                  users.map((user) => {
-                    const isAdmin =
-                      user.roles.includes('admin')
+                  <div className="user-list">
+                    {users.map((user) => {
+                      const isAdmin =
+                        user.roles.includes('admin')
 
-                    return (
-                      <div
-                        key={user.user_id}
-                        style={{
-                          padding: '16px 0',
-                          borderBottom:
-                            '1px solid #e5e7eb',
-                        }}
-                      >
-                        <strong>
-                          {user.username}
-                        </strong>
+                      return (
+                        <div
+                          key={user.user_id}
+                          className="user-row"
+                        >
+                          <div className="user-row-header">
+                            <div className="sidebar-avatar">
+                              {(user.username || 'U').trim().charAt(0).toUpperCase()}
+                            </div>
 
-                        <p className="card-note">
-                          User ID: {user.user_id}
-                        </p>
+                            <div className="user-row-identity">
+                              <strong>
+                                {user.username}
+                              </strong>
 
-                        <p className="card-note">
-                          Roles:{' '}
-                          {user.roles.length > 0
-                            ? user.roles.join(', ')
-                            : 'None'}
-                        </p>
+                              <span>
+                                User ID: {user.user_id}
+                              </span>
+                            </div>
 
-                        {isAdmin ? (
-                          <p className="card-note">
-                            Admin has access to all
-                            permission categories.
-                          </p>
-                        ) : (
-                          <>
-                            <p className="card-note">
-                              Permissions:{' '}
-                              {user.permissions.length > 0
-                                ? user.permissions.join(', ')
-                                : 'None'}
+                            <div className="tag-list">
+                              {user.roles.length > 0 ? (
+                                user.roles.map((role) => (
+                                  <span
+                                    key={role}
+                                    className={
+                                      role === 'admin'
+                                        ? 'tag tag--accent'
+                                        : 'tag'
+                                    }
+                                  >
+                                    {role}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="tag">No role</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {isAdmin ? (
+                            <p className="user-row-note">
+                              <ShieldCheck size={14} />
+                              Admin has access to all
+                              permission categories.
                             </p>
-
-                            <div
-                              style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 12,
-                                marginTop: 12,
-                              }}
-                            >
+                          ) : (
+                            <div className="permission-grid">
                               {permissions.map(
                                 (permission) => {
                                   const assigned =
@@ -425,30 +419,30 @@ function UserManagement() {
                                       key={
                                         permission.permission_id
                                       }
-                                      style={{
-                                        border:
-                                          '1px solid #e5e7eb',
-                                        borderRadius: 6,
-                                        padding: 12,
-                                        minWidth: 180,
-                                      }}
+                                      className={
+                                        assigned
+                                          ? 'permission-tile permission-tile--assigned'
+                                          : 'permission-tile'
+                                      }
                                     >
-                                      <strong>
-                                        {
-                                          permission.permission_name
-                                        }
-                                      </strong>
+                                      <div className="permission-tile-copy">
+                                        <strong>
+                                          {
+                                            permission.permission_name
+                                          }
+                                        </strong>
 
-                                      <p className="card-note">
-                                        {
-                                          permission.permission_code
-                                        }
-                                      </p>
+                                        <span>
+                                          {assigned
+                                            ? 'Assigned'
+                                            : 'Not assigned'}
+                                        </span>
+                                      </div>
 
                                       {assigned ? (
                                         <button
                                           type="button"
-                                          className="btn"
+                                          className="btn btn--sm btn--danger"
                                           disabled={isUpdating}
                                           onClick={() =>
                                             handleRemove(
@@ -457,6 +451,11 @@ function UserManagement() {
                                             )
                                           }
                                         >
+                                          {isUpdating ? (
+                                            <Loader2 size={14} className="spin" />
+                                          ) : (
+                                            <Minus size={14} />
+                                          )}
                                           {isUpdating
                                             ? 'Removing...'
                                             : 'Remove'}
@@ -464,7 +463,7 @@ function UserManagement() {
                                       ) : (
                                         <button
                                           type="button"
-                                          className="btn"
+                                          className="btn btn--sm btn-secondary"
                                           disabled={isUpdating}
                                           onClick={() =>
                                             handleAssign(
@@ -473,6 +472,11 @@ function UserManagement() {
                                             )
                                           }
                                         >
+                                          {isUpdating ? (
+                                            <Loader2 size={14} className="spin" />
+                                          ) : (
+                                            <Plus size={14} />
+                                          )}
                                           {isUpdating
                                             ? 'Assigning...'
                                             : 'Assign'}
@@ -483,57 +487,58 @@ function UserManagement() {
                                 }
                               )}
                             </div>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </Card>
 
-              <Card title="Available Permissions">
+              <Card
+                title="Available Permissions"
+                subtitle="What each permission unlocks"
+              >
                 {permissions.length === 0 ? (
-                  <p className="card-note">
-                    No permissions found.
-                  </p>
+                  <div className="empty-state">
+                    <KeyRound size={28} strokeWidth={1.5} />
+                    <span>No permissions found.</span>
+                  </div>
                 ) : (
-                  permissions.map((permission) => (
-                    <div
-                      key={permission.permission_id}
-                      style={{
-                        padding: '12px 0',
-                        borderBottom:
-                          '1px solid #e5e7eb',
-                      }}
-                    >
-                      <strong>
-                        {permission.permission_name}
-                      </strong>
+                  <div className="definition-list">
+                    {permissions.map((permission) => (
+                      <div
+                        key={permission.permission_id}
+                        className="definition-row"
+                      >
+                        <div>
+                          <strong>
+                            {permission.permission_name}
+                          </strong>
 
-                      <p className="card-note">
-                        Code:{' '}
-                        {permission.permission_code}
-                      </p>
+                          <p className="card-note">
+                            Code:{' '}
+                            {permission.permission_code}
+                          </p>
+                        </div>
 
-                      <p className="card-note">
-                        Category:{' '}
-                        {permission.category}
-                      </p>
+                        <div>
+                          <p className="card-note">
+                            {permission.category}
+                            {permission.subcategory && (
+                              <> · {permission.subcategory}</>
+                            )}
+                          </p>
 
-                      {permission.subcategory && (
-                        <p className="card-note">
-                          Subcategory:{' '}
-                          {permission.subcategory}
-                        </p>
-                      )}
-
-                      {permission.description && (
-                        <p className="card-note">
-                          {permission.description}
-                        </p>
-                      )}
-                    </div>
-                  ))
+                          {permission.description && (
+                            <p>
+                              {permission.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </Card>
             </>

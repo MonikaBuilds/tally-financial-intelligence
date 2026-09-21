@@ -71,6 +71,7 @@ function buildColumns(navigate) {
     {
       key: 'amount',
       label: 'Amount',
+      align: 'right',
       render: (row) => (row.is_group ? <strong>{formatCurrency(row.amount)}</strong> : formatCurrency(row.amount)),
     },
   ]

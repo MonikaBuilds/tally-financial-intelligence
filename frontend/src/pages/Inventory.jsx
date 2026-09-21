@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
+import { AlertCircle, PackageSearch } from 'lucide-react'
 
 import { useFetch } from '../hooks/useFetch'
 
@@ -39,7 +40,7 @@ function ReportBody({ path, columns, exportBasePath, exportParams, filenameBase,
 
   return (
     <>
-      <div style={{ marginBottom: 16 }}>
+      <div className="card-toolbar">
         <ExportButtons
           basePath={exportBasePath}
           params={exportParams}
@@ -64,7 +65,7 @@ function ReportBody({ path, columns, exportBasePath, exportParams, filenameBase,
 
 const REGISTER_COLUMNS = [
   { key: 'month', label: 'Particulars' },
-  { key: 'total_vouchers', label: 'Total Vouchers' },
+  { key: 'total_vouchers', label: 'Total Vouchers', align: 'right' },
 ]
 
 function RegisterTab({ registerKey }) {
@@ -80,7 +81,7 @@ function RegisterTab({ registerKey }) {
 
   return (
     <>
-      <div className="ledger-filters" style={{ marginBottom: 16 }}>
+      <div className="ledger-filters filter-bar">
         <div className="form-field form-field--date">
           <label htmlFor={`${registerKey}-from`}>From Date</label>
           <input
@@ -110,7 +111,7 @@ function RegisterTab({ registerKey }) {
 
       {!loading && !error && response?.success && (
         <>
-          <div style={{ marginBottom: 16 }}>
+          <div className="card-toolbar">
             <ExportButtons
               basePath={`/reports/inventory-register/${registerKey}/export`}
               params={params}
@@ -154,11 +155,11 @@ const STOCK_SUMMARY_COLUMNS = [
   { key: 'stock_item', label: 'Stock Item' },
   { key: 'stock_group', label: 'Stock Group' },
   { key: 'unit', label: 'Unit' },
-  { key: 'opening_quantity', label: 'Opening Qty', render: (r) => formatQuantity(r.opening_quantity) },
-  { key: 'opening_value', label: 'Opening Value', render: (r) => formatCurrency(r.opening_value) },
-  { key: 'closing_quantity', label: 'Closing Qty', render: (r) => formatQuantity(r.closing_quantity) },
-  { key: 'closing_rate', label: 'Closing Rate', render: (r) => formatCurrency(r.closing_rate) },
-  { key: 'closing_value', label: 'Closing Value', render: (r) => formatCurrency(r.closing_value) },
+  { key: 'opening_quantity', label: 'Opening Qty', align: 'right', render: (r) => formatQuantity(r.opening_quantity) },
+  { key: 'opening_value', label: 'Opening Value', align: 'right', render: (r) => formatCurrency(r.opening_value) },
+  { key: 'closing_quantity', label: 'Closing Qty', align: 'right', render: (r) => formatQuantity(r.closing_quantity) },
+  { key: 'closing_rate', label: 'Closing Rate', align: 'right', render: (r) => formatCurrency(r.closing_rate) },
+  { key: 'closing_value', label: 'Closing Value', align: 'right', render: (r) => formatCurrency(r.closing_value) },
 ]
 
 function StockSummaryTab() {
@@ -303,7 +304,7 @@ function StockMovementTab() {
 
   return (
     <>
-      <form className="ledger-filters" onSubmit={handleSubmit}>
+      <form className="ledger-filters filter-bar" onSubmit={handleSubmit}>
         <div className="form-field">
           <label htmlFor="movement-item">Stock Item (optional)</label>
           <input
@@ -338,12 +339,18 @@ function StockMovementTab() {
         <button type="submit" className="btn">View Movement</button>
       </form>
 
-      {selectionError && <p className="selection-error">{selectionError}</p>}
+      {selectionError && (
+        <p className="selection-error">
+          <AlertCircle size={16} />
+          {selectionError}
+        </p>
+      )}
 
       {!filters && (
-        <p className="empty-state">
-          Choose a date range and/or stock item, then click "View Movement".
-        </p>
+        <div className="empty-state">
+          <PackageSearch size={28} strokeWidth={1.5} />
+          <span>Choose a date range and/or stock item, then click "View Movement".</span>
+        </div>
       )}
 
       {filters && (
@@ -434,7 +441,7 @@ function NegativeStockTab() {
 
 function DateFilter({ label, value, onChange }) {
   return (
-    <div className="ledger-filters" style={{ marginBottom: 16 }}>
+    <div className="ledger-filters filter-bar">
       <div className="form-field form-field--date">
         <label htmlFor="inventory-as-on-date">{label}</label>
         <input
@@ -485,20 +492,30 @@ function Inventory() {
         subtitle="Summary and Registers, straight from Tally's Inventory Books menu"
       />
 
-      <div className="inventory-tabs">
+      <div className="inventory-tabs" role="tablist" aria-label="Inventory reports">
+        <span className="tab-group-label">Summary</span>
         {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={
-              tab.key === activeTab
-                ? 'inventory-tab inventory-tab--active'
-                : 'inventory-tab'
-            }
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
+          <Fragment key={tab.key}>
+            {tab.key === REGISTERS[0].key && (
+              <>
+                <span className="tab-divider" aria-hidden="true" />
+                <span className="tab-group-label">Registers</span>
+              </>
+            )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab.key === activeTab}
+              className={
+                tab.key === activeTab
+                  ? 'inventory-tab inventory-tab--active'
+                  : 'inventory-tab'
+              }
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          </Fragment>
         ))}
       </div>
 

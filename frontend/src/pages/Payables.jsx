@@ -6,6 +6,7 @@ import Card from '../components/common/Card'
 import StatCard from '../components/common/StatCard'
 import DataTable from '../components/common/DataTable'
 import ExportButtons from '../components/common/ExportButtons'
+import { ArrowUpRight } from 'lucide-react'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -16,6 +17,7 @@ const COLUMNS = [
   {
     key: 'outstanding_amount',
     label: 'Outstanding',
+    align: 'right',
     render: (row) => formatCurrency(row.outstanding_amount),
   },
 ]
@@ -37,7 +39,7 @@ function Payables() {
       />
 
       <div className="stat-grid">
-        <StatCard label="Total Payable" value={total_payable} />
+        <StatCard label="Total Payable" value={total_payable} tone="warning" icon={ArrowUpRight} />
       </div>
 
       <Card title="Outstanding Bills">

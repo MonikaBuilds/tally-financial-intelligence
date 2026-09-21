@@ -9,8 +9,8 @@ import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
   { key: 'name', label: 'Ledger' },
-  { key: 'debit', label: 'Debit', render: (row) => formatCurrency(row.debit) },
-  { key: 'credit', label: 'Credit', render: (row) => formatCurrency(row.credit) },
+  { key: 'debit', label: 'Debit', align: 'right', render: (row) => formatCurrency(row.debit) },
+  { key: 'credit', label: 'Credit', align: 'right', render: (row) => formatCurrency(row.credit) },
 ]
 
 function TrialBalance() {

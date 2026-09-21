@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router'
+import { AlertCircle, BookOpen } from 'lucide-react'
 
 import { useFetch } from '../hooks/useFetch'
 
@@ -9,6 +10,7 @@ import ErrorMessage from '../components/common/ErrorMessage'
 import Card from '../components/common/Card'
 import DataTable from '../components/common/DataTable'
 import ExportButtons from '../components/common/ExportButtons'
+import SearchableSelect from '../components/common/SearchableSelect'
 import { formatCurrency, financialYearRange } from '../utils/format'
 
 function formatBalance(value) {
@@ -35,16 +37,19 @@ const COLUMNS = [
   {
     key: 'debit',
     label: 'Debit',
+    align: 'right',
     render: (row) => formatAmount(row.debit),
   },
   {
     key: 'credit',
     label: 'Credit',
+    align: 'right',
     render: (row) => formatAmount(row.credit),
   },
   {
     key: 'running_balance',
     label: 'Balance',
+    align: 'right',
     render: (row) => formatBalance(row.running_balance),
   },
 ]
@@ -61,6 +66,24 @@ function Ledger() {
   const ledgers = Array.isArray(listResponse?.ledgers)
     ? listResponse.ledgers
     : []
+
+  // Dropdown options, grouped by the ledger's Tally parent group.
+  const ledgerOptions = useMemo(
+    () =>
+      (Array.isArray(listResponse?.ledgers) ? listResponse.ledgers : [])
+        .filter((ledger) => ledger.name)
+        .map((ledger) => ({
+          value: ledger.name,
+          label: ledger.name,
+          group: ledger.parent || 'Other',
+        }))
+        .sort(
+          (a, b) =>
+            a.group.localeCompare(b.group) ||
+            a.label.localeCompare(b.label)
+        ),
+    [listResponse]
+  )
 
   const [ledgerName, setLedgerName] = useState('')
   const [fromDate, setFromDate] = useState('')
@@ -286,16 +309,19 @@ function Ledger() {
     {
       key: 'debit',
       label: 'Debit',
+      align: 'right',
       render: (row) => formatAmount(row.debit),
     },
     {
       key: 'credit',
       label: 'Credit',
+      align: 'right',
       render: (row) => formatAmount(row.credit),
     },
     {
       key: 'closing_balance',
       label: 'Closing Balance',
+      align: 'right',
       render: (row) => formatBalance(row.closing_balance),
     },
   ]
@@ -353,25 +379,18 @@ function Ledger() {
                 Ledger
               </label>
 
-              <input
+              <SearchableSelect
                 id="ledger-search"
-                list="ledger-options"
                 value={ledgerName}
-                onChange={(event) =>
-                  setLedgerName(event.target.value)
-                }
+                options={ledgerOptions}
+                onChange={(name) => {
+                  setLedgerName(name)
+                  setSelectionError(null)
+                }}
                 placeholder="Select ledger from Tally"
-                autoComplete="off"
+                searchPlaceholder="Search ledgers or groups…"
+                emptyMessage="No ledger matches your search."
               />
-
-              <datalist id="ledger-options">
-                {ledgers.map((ledger) => (
-                  <option
-                    key={ledger.name}
-                    value={ledger.name}
-                  />
-                ))}
-              </datalist>
             </div>
 
             <div className="form-field form-field--date">
@@ -433,6 +452,7 @@ function Ledger() {
 
         {selectionError && (
           <p className="selection-error">
+            <AlertCircle size={16} />
             {selectionError}
           </p>
         )}
@@ -440,10 +460,13 @@ function Ledger() {
 
       {!activeLedger && (
         <Card>
-          <p className="empty-state">
-            Select a ledger from Tally and click View
-            Statement.
-          </p>
+          <div className="empty-state">
+            <BookOpen size={28} strokeWidth={1.5} />
+            <span>
+              Select a ledger from Tally and click View
+              Statement.
+            </span>
+          </div>
         </Card>
       )}
 
@@ -467,52 +490,55 @@ function Ledger() {
 
       {report && (
         <Card title={`Ledger: ${report.ledger_name}`}>
-          <p className="card-note ledger-summary-note">
-            Period:{' '}
-            {report.from_date || activeLedger.from || 'books beginning'} to{' '}
-            {report.to_date || activeLedger.to || 'today'}
-            {' · '}
-            Opening Balance:{' '}
-            {formatBalance(report.opening_balance)}
-            {' · '}
-            Entries:{' '}
-            {report.entry_count ?? entries.length}
-          </p>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              marginBottom: 16,
-              flexWrap: 'wrap',
-            }}
-          >
-            <button
-              type="button"
-              className={`btn ${
-                view === 'detailed'
-                  ? ''
-                  : 'btn-secondary'
-              }`}
-              onClick={() => setView('detailed')}
-            >
-              Detailed
-            </button>
-
-            <button
-              type="button"
-              className={`btn ${
-                view === 'monthly'
-                  ? ''
-                  : 'btn-secondary'
-              }`}
-              onClick={() => setView('monthly')}
-            >
-              Monthly Summary
-            </button>
+          <div className="meta-list">
+            <div className="meta-item">
+              <span>Period</span>
+              <strong>
+                {report.from_date || activeLedger.from || 'books beginning'} to{' '}
+                {report.to_date || activeLedger.to || 'today'}
+              </strong>
+            </div>
+            <div className="meta-item">
+              <span>Opening Balance</span>
+              <strong>{formatBalance(report.opening_balance)}</strong>
+            </div>
+            <div className="meta-item">
+              <span>Entries</span>
+              <strong>{report.entry_count ?? entries.length}</strong>
+            </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
+          <div className="card-toolbar">
+            <div className="segmented" role="tablist" aria-label="Ledger view">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'detailed'}
+                className={`segmented-option${
+                  view === 'detailed'
+                    ? ' segmented-option--active'
+                    : ''
+                }`}
+                onClick={() => setView('detailed')}
+              >
+                Detailed
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'monthly'}
+                className={`segmented-option${
+                  view === 'monthly'
+                    ? ' segmented-option--active'
+                    : ''
+                }`}
+                onClick={() => setView('monthly')}
+              >
+                Monthly Summary
+              </button>
+            </div>
+
             <ExportButtons
               basePath="/reports/ledger/export"
               params={{

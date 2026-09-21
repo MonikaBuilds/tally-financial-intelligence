@@ -1,56 +1,14 @@
-import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router'
-import ChatIcon from '../common/ChatIcon'
-import { ALL_REPORTS, REPORT_ROUTES } from '../../reportsConfig'
+import { NavLink } from 'react-router'
+import {
+  BarChart3,
+  Building2,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+} from 'lucide-react'
 
-const NAV_LINKS = [
-  {
-    to: '/',
-    label: 'Dashboard',
-    end: true,
-  },
-  {
-    to: '/chatbot',
-    label: 'AI Assistant',
-    icon: true,
-  },
-  {
-    to: '/ledger',
-    label: 'Ledger',
-  },
-  {
-    to: '/profit-loss',
-    label: 'Profit & Loss',
-  },
-  {
-    to: '/receivables',
-    label: 'Receivables',
-  },
-  {
-    to: '/payables',
-    label: 'Payables',
-  },
-  {
-    to: '/pending-invoices',
-    label: 'Pending Invoices',
-  },
-  {
-    to: '/trial-balance',
-    label: 'Trial Balance',
-  },
-  {
-    to: '/balance-sheet',
-    label: 'Balance Sheet',
-  },
-  {
-    to: '/tally-status',
-    label: 'Tally Status',
-  },
-  {
-    to: '/admin/users',
-    label: 'User Management',
-  },
-]
+import { NAV_SECTIONS } from './navConfig'
 
 function getCurrentUser() {
   try {
@@ -77,7 +35,14 @@ function getInitial(username) {
     .toUpperCase()
 }
 
-function Sidebar({ onLogout }) {
+function Sidebar({
+  collapsed,
+  isMobile,
+  onToggle,
+  onNavigate,
+  onCloseMobile,
+  onLogout,
+}) {
   const user = getCurrentUser()
 
   const companies = Array.isArray(user?.companies)
@@ -91,35 +56,42 @@ function Sidebar({ onLogout }) {
         ? `${companies.length} companies`
         : 'No company'
 
+  // Tooltips are only needed when labels are hidden.
+  const tooltip = (label) => (collapsed ? label : undefined)
+
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-brand-logo">
-          TF
+          <BarChart3 size={18} />
         </div>
 
         <div className="sidebar-brand-copy">
-          <strong>
-            Tally Financial
-          </strong>
-
-          <span>
-            Intelligence
-          </span>
+          <strong>Tally Financial</strong>
+          <span>Intelligence</span>
         </div>
+
+        {isMobile && (
+          <button
+            type="button"
+            className="sidebar-icon-button sidebar-close"
+            onClick={onCloseMobile}
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
-      <div className="sidebar-company">
-        <span className="sidebar-section-label">
-          Company
-        </span>
+      <div
+        className="sidebar-company"
+        data-tooltip={tooltip(companyLabel)}
+      >
+        <Building2 size={16} />
 
-        <div className="sidebar-company-value">
-          <span className="company-indicator" />
-
-          <span title={companyLabel}>
-            {companyLabel}
-          </span>
+        <div className="sidebar-company-copy">
+          <span>Company</span>
+          <strong title={companyLabel}>{companyLabel}</strong>
         </div>
       </div>
 
@@ -127,35 +99,43 @@ function Sidebar({ onLogout }) {
         className="sidebar-nav"
         aria-label="Main navigation"
       >
-        <span className="sidebar-section-label">
-          Workspace
-        </span>
+        {NAV_SECTIONS.map((section) => (
+          <div className="sidebar-section" key={section.label}>
+            <span className="sidebar-section-label">
+              {section.label}
+            </span>
 
-        {NAV_LINKS.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            className={({ isActive }) =>
-              isActive
-                ? 'sidebar-link sidebar-link--active'
-                : 'sidebar-link'
-            }
-          >
-            {link.icon && (
-              <ChatIcon
-                size={16}
-                className="sidebar-link-icon"
-              />
-            )}
+            {section.links.map((link) => {
+              const Icon = link.icon
 
-            <span>{link.label}</span>
-          </NavLink>
+              return (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.end}
+                  onClick={onNavigate}
+                  aria-label={collapsed ? link.label : undefined}
+                  data-tooltip={tooltip(link.label)}
+                  className={({ isActive }) =>
+                    isActive
+                      ? 'sidebar-link sidebar-link--active'
+                      : 'sidebar-link'
+                  }
+                >
+                  <Icon size={18} strokeWidth={1.9} />
+                  <span className="sidebar-link-label">{link.label}</span>
+                </NavLink>
+              )
+            })}
+          </div>
         ))}
       </nav>
 
-      <div className="sidebar-account">
-        <div className="sidebar-user">
+      <div className="sidebar-footer">
+        <div
+          className="sidebar-user"
+          data-tooltip={tooltip(user?.username || 'User')}
+        >
           <div className="sidebar-avatar">
             {getInitial(user?.username)}
           </div>
@@ -164,43 +144,46 @@ function Sidebar({ onLogout }) {
             <strong title={user?.username}>
               {user?.username || 'User'}
             </strong>
-
-            <span>
-              Authorized user
-            </span>
+            <span>Authorized user</span>
           </div>
+
+          <button
+            type="button"
+            className="sidebar-icon-button sidebar-logout"
+            onClick={onLogout}
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <LogOut size={17} />
+          </button>
         </div>
+
+        {collapsed && (
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={onLogout}
+            aria-label="Sign out"
+            data-tooltip="Sign out"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
 
         <button
           type="button"
-          className="sidebar-logout"
-          onClick={onLogout}
+          className="sidebar-toggle"
+          onClick={onToggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          data-tooltip={tooltip('Expand sidebar')}
         >
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-
-            <path
-              d="M14 8l4 4-4 4M18 12H9"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-
-          <span>
-            Sign out
-          </span>
+          {collapsed ? (
+            <PanelLeftOpen size={18} />
+          ) : (
+            <PanelLeftClose size={18} />
+          )}
+          <span className="sidebar-toggle-label">Collapse</span>
         </button>
       </div>
     </aside>

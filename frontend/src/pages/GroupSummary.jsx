@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams, Link } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
 import { useFetch } from '../hooks/useFetch'
 import PageHeader from '../components/layout/PageHeader'
 import Loader from '../components/common/Loader'
@@ -50,11 +51,13 @@ function buildColumns(navigate, fromDate, toDate) {
     {
       key: 'debit',
       label: 'Debit',
+      align: 'right',
       render: (row) => (row.debit ? formatCurrency(row.debit) : ''),
     },
     {
       key: 'credit',
       label: 'Credit',
+      align: 'right',
       render: (row) => (row.credit ? formatCurrency(row.credit) : ''),
     },
   ]
@@ -94,11 +97,12 @@ function GroupSummary() {
         subtitle="Click a row to drill further - into a sub-group, or into a ledger's monthly summary"
       />
 
-      <p style={{ marginBottom: 16 }}>
-        <Link to="/reports/profit-loss" className="link-button">
-          &larr; Back to Profit &amp; Loss
+      <nav className="breadcrumbs">
+        <Link to="/reports/profit-loss">
+          <ArrowLeft size={16} />
+          Back to Profit &amp; Loss
         </Link>
-      </p>
+      </nav>
 
       <Card>
         <DataTable columns={columns} rows={rows} />

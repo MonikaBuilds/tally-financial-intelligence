@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
 
 import { useFetch } from '../hooks/useFetch'
 
@@ -88,7 +89,8 @@ function VoucherDetail() {
           className="breadcrumb-link"
           onClick={() => navigate(-1)}
         >
-          ‹ Back
+          <ArrowLeft size={16} />
+          Back
         </button>
       </nav>
 
@@ -104,19 +106,24 @@ function VoucherDetail() {
 
       {voucher && (
         <Card title={`${voucher.voucher_type} No. ${voucher.voucher_number}`}>
-          <p className="card-note ledger-summary-note">
-            Date: {formatDate(voucher.date)}
+          <div className="meta-list">
+            <div className="meta-item">
+              <span>Date</span>
+              <strong>{formatDate(voucher.date)}</strong>
+            </div>
             {voucher.reference_number && (
-              <>
-                {' · '}Reference: {voucher.reference_number}
-              </>
+              <div className="meta-item">
+                <span>Reference</span>
+                <strong>{voucher.reference_number}</strong>
+              </div>
             )}
             {voucher.is_cancelled && (
-              <>
-                {' · '}<span className="status-cancelled">Cancelled</span>
-              </>
+              <div className="meta-item">
+                <span>Status</span>
+                <strong className="status-cancelled">Cancelled</strong>
+              </div>
             )}
-          </p>
+          </div>
 
           {accountEntry && (
             <div className="voucher-account-box">
@@ -153,7 +160,7 @@ function VoucherDetail() {
 
           {voucher.narration && (
             <p className="card-note voucher-narration">
-              Narration: {voucher.narration}
+              <strong>Narration:</strong> {voucher.narration}
             </p>
           )}
 

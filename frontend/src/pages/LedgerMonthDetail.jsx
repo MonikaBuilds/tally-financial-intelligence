@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router'
+import { ArrowLeft } from 'lucide-react'
 
 import { useFetch } from '../hooks/useFetch'
 
@@ -34,16 +35,19 @@ const COLUMNS = [
   {
     key: 'debit',
     label: 'Debit',
+    align: 'right',
     render: (row) => formatAmount(row.debit),
   },
   {
     key: 'credit',
     label: 'Credit',
+    align: 'right',
     render: (row) => formatAmount(row.credit),
   },
   {
     key: 'running_balance',
     label: 'Balance',
+    align: 'right',
     render: (row) => formatBalance(row.running_balance),
   },
 ]
@@ -136,7 +140,8 @@ function LedgerMonthDetail() {
 
       <nav className="breadcrumbs">
         <Link to={`/reports/ledger?ledger=${encodeURIComponent(ledgerName)}&view=monthly`}>
-          ‹ Back to Ledger
+          <ArrowLeft size={16} />
+          Back to Ledger
         </Link>
       </nav>
 
@@ -146,13 +151,20 @@ function LedgerMonthDetail() {
 
       {report && (
         <Card title={`${formatMonthKey(monthKey)} Vouchers`}>
-          <p className="card-note ledger-summary-note">
-            Period: {range.from} to {range.to}
-            {' · '}
-            Opening Balance: {formatBalance(report.opening_balance)}
-            {' · '}
-            Entries: {report.entry_count ?? entries.length}
-          </p>
+          <div className="meta-list">
+            <div className="meta-item">
+              <span>Period</span>
+              <strong>{range.from} to {range.to}</strong>
+            </div>
+            <div className="meta-item">
+              <span>Opening Balance</span>
+              <strong>{formatBalance(report.opening_balance)}</strong>
+            </div>
+            <div className="meta-item">
+              <span>Entries</span>
+              <strong>{report.entry_count ?? entries.length}</strong>
+            </div>
+          </div>
 
           <DataTable
             columns={COLUMNS}

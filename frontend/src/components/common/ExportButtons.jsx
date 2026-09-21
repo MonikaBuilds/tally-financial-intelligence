@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FileDown, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { downloadFile } from '../../api/client'
 
 function ExportButtons({ basePath, params = {}, filenameBase = 'report', disabled = false }) {
@@ -33,7 +34,8 @@ function ExportButtons({ basePath, params = {}, filenameBase = 'report', disable
         onClick={() => handleDownload('pdf')}
         disabled={isDisabled}
       >
-        {pending === 'pdf' ? 'Preparing PDF…' : 'Download PDF'}
+        {pending === 'pdf' ? <Loader2 size={16} className="spin" /> : <FileDown size={16} />}
+        {pending === 'pdf' ? 'Preparing…' : 'PDF'}
       </button>
       <button
         type="button"
@@ -41,7 +43,8 @@ function ExportButtons({ basePath, params = {}, filenameBase = 'report', disable
         onClick={() => handleDownload('xlsx')}
         disabled={isDisabled}
       >
-        {pending === 'xlsx' ? 'Preparing Excel…' : 'Download Excel'}
+        {pending === 'xlsx' ? <Loader2 size={16} className="spin" /> : <FileSpreadsheet size={16} />}
+        {pending === 'xlsx' ? 'Preparing…' : 'Excel'}
       </button>
       {error && <span className="export-error">{error}</span>}
     </div>

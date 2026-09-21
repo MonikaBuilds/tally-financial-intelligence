@@ -6,6 +6,7 @@ import Card from '../components/common/Card'
 import StatCard from '../components/common/StatCard'
 import DataTable from '../components/common/DataTable'
 import ExportButtons from '../components/common/ExportButtons'
+import { ArrowDownLeft } from 'lucide-react'
 import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
@@ -16,6 +17,7 @@ const COLUMNS = [
   {
     key: 'outstanding_amount',
     label: 'Outstanding',
+    align: 'right',
     render: (row) => formatCurrency(row.outstanding_amount),
   },
 ]
@@ -37,7 +39,7 @@ function Receivables() {
       />
 
       <div className="stat-grid">
-        <StatCard label="Total Receivable" value={total_receivable} />
+        <StatCard label="Total Receivable" value={total_receivable} tone="info" icon={ArrowDownLeft} />
       </div>
 
       <Card title="Outstanding Bills">

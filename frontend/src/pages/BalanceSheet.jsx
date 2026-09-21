@@ -9,7 +9,7 @@ import { formatCurrency } from '../utils/format'
 
 const COLUMNS = [
   { key: 'name', label: 'Account' },
-  { key: 'amount', label: 'Amount', render: (row) => formatCurrency(row.amount) },
+  { key: 'amount', label: 'Amount', align: 'right', render: (row) => formatCurrency(row.amount) },
 ]
 
 function BalanceSheet() {
