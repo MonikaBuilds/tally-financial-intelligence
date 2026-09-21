@@ -9,3 +9,5 @@ openpyxl
 reportlab
 
 PyJWT 
+google-genai
+pytest-asyncio

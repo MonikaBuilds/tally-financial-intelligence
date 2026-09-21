@@ -123,10 +123,6 @@ class TallyClient:
         xml_payload: str,
         timeout: float = 30.0,
     ) -> str:
-        # Measure the actual time Tally takes to process this XML request.
-        # This helps us identify slow Tally reports during development.
-        start_time = time.perf_counter()
-
         # Try to identify the report name from the XML for easier debugging.
         report_match = re.search(
             r"<REPORTNAME>(.*?)</REPORTNAME>",
@@ -140,49 +136,41 @@ class TallyClient:
             else "Unknown Report"
         )
 
-        print(
-            f"TALLY DEBUG: starting report={report_name}"
-        )
+        # Serialize requests so Tally only ever handles one at a time
+        # (see the comment on _lock above).
+        async with self._lock:
+            # Measure the actual time Tally takes to process this XML request.
+            # This starts after the lock is acquired, so queue wait is excluded.
+            start_time = time.perf_counter()
 
-        try:
-            if self._shared_client is not None:
-                response = await self._shared_client.post(
-                    self.base_url,
-                    content=xml_payload,
-                    headers={
-                        "Content-Type": "text/xml",
-                    },
-                    timeout=timeout,
-                )
+            print(
+                f"TALLY DEBUG: starting report={report_name}"
+            )
 
-            else:
-                # This fallback is mainly used by tests or scripts
-                # where the FastAPI lifespan has not created the shared client.
-                async with httpx.AsyncClient(
-                    timeout=timeout
-                ) as client:
-                    response = await client.post(
+            try:
+                if self._shared_client is not None:
+                    response = await self._shared_client.post(
                         self.base_url,
                         content=xml_payload,
                         headers={
                             "Content-Type": "text/xml",
                         },
+                        timeout=timeout,
                     )
 
-            duration = time.perf_counter() - start_time
-
-            print(
-                f"TALLY DEBUG: completed report={report_name} "
-                f"in {duration:.2f}s"
-            )
-
-                response = await client.post(
-                    self.base_url,
-                    content=xml_payload,
-                    headers={
-                        "Content-Type": "text/xml"
-                    }
-                )
+                else:
+                    # This fallback is mainly used by tests or scripts
+                    # where the FastAPI lifespan has not created the shared client.
+                    async with httpx.AsyncClient(
+                        timeout=timeout
+                    ) as client:
+                        response = await client.post(
+                            self.base_url,
+                            content=xml_payload,
+                            headers={
+                                "Content-Type": "text/xml",
+                            },
+                        )
 
                 response.raise_for_status()
 
@@ -192,27 +180,32 @@ class TallyClient:
                     xml_response
                 )
 
-            return xml_response
+                duration = time.perf_counter() - start_time
 
-        except asyncio.CancelledError:
-            duration = time.perf_counter() - start_time
+                print(
+                    f"TALLY DEBUG: completed report={report_name} "
+                    f"in {duration:.2f}s"
+                )
 
-            print(
-                f"TALLY DEBUG: cancelled report={report_name} "
-                f"after {duration:.2f}s"
-            )
+                return xml_response
 
-            raise
+            except asyncio.CancelledError:
+                duration = time.perf_counter() - start_time
 
-        except Exception as exc:
-            duration = time.perf_counter() - start_time
+                print(
+                    f"TALLY DEBUG: cancelled report={report_name} "
+                    f"after {duration:.2f}s"
+                )
 
-            print(
-                f"TALLY DEBUG: failed report={report_name} "
-                f"after {duration:.2f}s -> "
-                f"{type(exc).__name__}: {exc}"
-            )
+                raise
 
-            raise
+            except Exception as exc:
+                duration = time.perf_counter() - start_time
 
-        return xml_response
+                print(
+                    f"TALLY DEBUG: failed report={report_name} "
+                    f"after {duration:.2f}s -> "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+                raise

@@ -862,15 +862,19 @@ def parse_outstanding_report(
         "count": len(rows),
     }
 
+
+# ============================================================
 # LEDGER LIST
+# ============================================================
 
-
-def parse_ledger_list(xml_response: str) -> list[dict]:
+def parse_ledger_list(xml_response: str) -> dict:
     """
     Parse ledger master details returned by Tally.
 
     This is used by chatbot tools to find ledgers,
     their parent groups and opening/closing balances.
+
+    Returns {"success": ..., "ledgers": [...], "count": ...}.
     """
 
     root = parse_xml(xml_response)
@@ -879,6 +883,7 @@ def parse_ledger_list(xml_response: str) -> list[dict]:
 
     seen = set()
 
+    for ledger in root.findall(".//LEDGER"):
         name = (
             ledger.get("NAME")
             or ledger.findtext("NAME")
@@ -886,7 +891,14 @@ def parse_ledger_list(xml_response: str) -> list[dict]:
         ).strip()
 
         if not name:
-            name = node.attrib.get("NAME", "")
+            continue
+
+        key = name.casefold()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
 
         # Tally may return the parent group using
         # either CHATPARENTGROUP or PARENT.
@@ -919,9 +931,14 @@ def parse_ledger_list(xml_response: str) -> list[dict]:
                 closing_balance,
                 2
             ),
+            "guid": (ledger.findtext("GUID") or "").strip(),
         })
 
-    return ledgers
+    return {
+        "success": True,
+        "ledgers": ledgers,
+        "count": len(ledgers),
+    }
 
 # STOCK ITEM LIST
 
@@ -1009,6 +1026,7 @@ def parse_stock_item_list(xml_text: str) -> list[dict]:
 
     return stock_items
 
+
 # ============================================================
 # LEDGER HELPERS
 # ============================================================
@@ -1079,7 +1097,11 @@ def _inventory_entry_nodes(voucher):
 
     return result
 
+
+# ============================================================
 # COST CENTRE ALLOCATIONS
+# ============================================================
+
 def _cost_centre_allocations(ledger_entry):
     """
     Extract cost centre allocations from a Tally ledger entry.
@@ -1125,8 +1147,6 @@ def _cost_centre_allocations(ledger_entry):
 
     return allocations
 
-# LEDGER REPORT
-
 
 def _parse_signed_tally_amount(
     amount_text: str,
@@ -1144,11 +1164,15 @@ def _parse_signed_tally_amount(
 
     amount = abs(to_float(amount_text))
 
-    seen_rows = set()
+    deemed = str(
+        is_deemed_positive or ""
+    ).strip().casefold()
+
+    if deemed in {"yes", "y", "true", "1"}:
+        return amount, 0.0
 
     return 0.0, amount
 
-        # Ignore deleted vouchers
 
 def _ledger_entry_particular(
     voucher,
@@ -1205,64 +1229,6 @@ def _ledger_entry_particular(
         default="",
     )
 
-
-        # ----------------------------------------------------
-        # Read stock item details from this voucher.
-        #
-        # These details are used later for item-wise sales,
-        # purchases and stock movement analysis.
-        # ----------------------------------------------------
-
-        stock_items = []
-
-        for inventory_node in _inventory_entry_nodes(
-            voucher
-        ):
-
-            stock_name = inventory_node.findtext(
-                "STOCKITEMNAME",
-                ""
-            ).strip()
-
-            if not stock_name:
-                continue
-
-            actual_quantity = inventory_node.findtext(
-                "ACTUALQTY",
-                ""
-            ).strip()
-
-            billed_quantity = inventory_node.findtext(
-                "BILLEDQTY",
-                ""
-            ).strip()
-
-            rate = inventory_node.findtext(
-                "RATE",
-                ""
-            ).strip()
-
-            amount = to_float(
-                inventory_node.findtext(
-                    "AMOUNT"
-                )
-            )
-
-            stock_items.append({
-                "stock_item_name": stock_name,
-                "actual_quantity": actual_quantity,
-                "billed_quantity": billed_quantity,
-                "rate": rate,
-                "amount": round(
-                    amount,
-                    2
-                ),
-            })
-
-
-        ledger_entry_nodes = _ledger_entry_nodes(
-            voucher
-        )
 
 # ============================================================
 # LEDGER NATIVE ROW PARSER
@@ -1515,6 +1481,55 @@ def parse_ledger_voucher_details(
             target_ledger,
         )
 
+        # Keep party separately for customer and supplier analysis.
+        party_name = _first_text(
+            voucher,
+            "PARTYLEDGERNAME",
+            "PARTYNAME",
+        )
+
+        # ----------------------------------------------------
+        # Read stock item details from this voucher.
+        #
+        # These details are used later for item-wise sales,
+        # purchases and stock movement analysis.
+        # ----------------------------------------------------
+
+        stock_items = []
+
+        for inventory_node in _inventory_entry_nodes(
+            voucher
+        ):
+            stock_name = inventory_node.findtext(
+                "STOCKITEMNAME",
+                ""
+            ).strip()
+
+            if not stock_name:
+                continue
+
+            stock_items.append({
+                "stock_item_name": stock_name,
+                "actual_quantity": inventory_node.findtext(
+                    "ACTUALQTY",
+                    ""
+                ).strip(),
+                "billed_quantity": inventory_node.findtext(
+                    "BILLEDQTY",
+                    ""
+                ).strip(),
+                "rate": inventory_node.findtext(
+                    "RATE",
+                    ""
+                ).strip(),
+                "amount": round(
+                    to_float(
+                        inventory_node.findtext("AMOUNT")
+                    ),
+                    2
+                ),
+            })
+
         for entry in target_entries:
             amount_text = _first_text(
                 entry,
@@ -1545,6 +1560,13 @@ def parse_ledger_voucher_details(
                     "balance_after_diff_in_tax": None,
                     "status": "",
                     "narration": narration,
+                    "party_name": party_name,
+                    # Keep inventory details for item-wise analysis.
+                    "stock_items": stock_items,
+                    # Keep actual Tally cost centre allocations.
+                    "cost_centre_allocations": _cost_centre_allocations(
+                        entry
+                    ),
                 }
             )
 
@@ -1647,33 +1669,87 @@ def parse_voucher_detail(
                 deemed,
             )
 
-            # Read cost centre allocations attached
-            # to this ledger entry.
-            cost_centre_allocations = (
-                _cost_centre_allocations(
-                    ledger_entry
-                )
+            entries.append(
+                {
+                    "ledger_name": ledger_name,
+                    "debit": debit,
+                    "credit": credit,
+                    "amount": debit if debit else -credit,
+                    "is_party_ledger": _same_ledger_name(
+                        ledger_name, party_name
+                    ),
+                }
             )
-            entries.append({
-                "date": voucher_date,
-                "voucher_type": voucher_type,
-                "voucher_number": voucher_number,
 
-                # Keep party separately for customer and supplier analysis.
-                "party_name": party_name,
+        total_debit = sum(e["debit"] for e in entries)
+        total_credit = sum(e["credit"] for e in entries)
 
-                "particulars": particulars,
+        vouchers.append(
+            {
+                "date": v_date,
+                "voucher_type": v_type,
+                "voucher_number": v_number,
+                "reference_number": reference,
+                "reference_date": reference_date,
                 "narration": narration,
+                "party_name": party_name,
+                "is_deleted": str(is_deleted or "").strip().lower()
+                in {"yes", "1", "true"},
+                "is_cancelled": str(is_cancelled or "").strip().lower()
+                in {"yes", "1", "true"},
+                "entries": entries,
+                "total_debit": total_debit,
+                "total_credit": total_credit,
+            }
+        )
 
-                # Keep inventory details for item-wise analysis.
-                "stock_items": stock_items,
+    return vouchers
 
-                "debit": round(debit, 2),
-                "credit": round(credit, 2),
-                
-                # Keep actual Tally cost centre allocations.
-                "cost_centre_allocations": cost_centre_allocations,
-            })
+
+# ============================================================
+# LEDGER ROW KEY / MERGING
+# ============================================================
+
+def _ledger_row_key(row):
+    return (
+        row.get("date"),
+        row.get("particulars"),
+        row.get("voucher_type"),
+        row.get("voucher_number"),
+        round(float(row.get("debit", 0) or 0), 2),
+        round(float(row.get("credit", 0) or 0), 2),
+        row.get("reference_number"),
+        row.get("narration"),
+    )
+
+
+def merge_ledger_rows(
+    native_rows,
+    custom_rows,
+):
+    """
+    Merge native and fallback rows without duplicating
+    identical transactions.
+    """
+
+    merged = []
+    seen = set()
+
+    for row in list(native_rows) + list(custom_rows):
+        key = _ledger_row_key(row)
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        merged.append(row)
+
+    return merged
+
+
+# ============================================================
+# LEDGER REPORT
+# ============================================================
 
 def _financial_year_start(value):
     return datetime(

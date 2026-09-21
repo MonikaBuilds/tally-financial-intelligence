@@ -393,71 +393,67 @@ def build_bills_payable_request(
 # ============================================================
 
 def build_ledger_list_request(
-    company_name: str | None = None
-):
-    """
-    Build a Tally request to load ledger master information.
+    company_name: str | None = None,
+) -> str:
 
-    The parent group helps us identify bank, cash, sales,
-    purchase, debtor and creditor ledgers correctly.
-    """
-
-    company_xml = build_company_variable(
-        company_name
-    )
+    company_xml = build_company_variable(company_name)
 
     return f"""
-    <ENVELOPE>
-        <HEADER>
-            <VERSION>1</VERSION>
-            <TALLYREQUEST>Export</TALLYREQUEST>
-            <TYPE>Collection</TYPE>
-            <ID>Chat Ledger Collection</ID>
-        </HEADER>
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Ledger List</ID>
+    </HEADER>
 
-        <BODY>
-            <DESC>
+    <BODY>
+        <DESC>
 
-                <STATICVARIABLES>
-                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-                    {company_xml}
-                </STATICVARIABLES>
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
 
-                <TDL>
-                    <TDLMESSAGE>
+                {company_xml}
+            </STATICVARIABLES>
 
-                        <COLLECTION NAME="Chat Ledger Collection">
-                            <TYPE>Ledger</TYPE>
+            <TDL>
+                <TDLMESSAGE>
 
-                            <!--
-                            Ask Tally for only the ledger fields
-                            required by our chatbot and reports.
-                            -->
-                            <NATIVEMETHOD>
-                                Name,
-                                Parent,
-                                OpeningBalance,
-                                ClosingBalance
-                            </NATIVEMETHOD>
+                    <COLLECTION NAME="Ledger List">
+                        <TYPE>Ledger</TYPE>
 
-                            <!--
-                            Some Tally responses may not expose
-                            PARENT consistently. This gives the
-                            parser another reliable parent value.
-                            -->
-                            <COMPUTE>
-                                CHATPARENTGROUP : $Parent
-                            </COMPUTE>
+                        <FETCH>
+                            NAME,
+                            PARENT,
+                            OPENINGBALANCE,
+                            CLOSINGBALANCE,
+                            GUID
+                        </FETCH>
 
-                        </COLLECTION>
+                    </COLLECTION>
 
-                    </TDLMESSAGE>
-                </TDL>
+                </TDLMESSAGE>
+            </TDL>
 
-            </DESC>
-        </BODY>
-    </ENVELOPE>
-    """
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# SINGLE LEDGER (lightweight master lookup for one ledger)
+#
+# Used by fetch_ledger_report() to get just the requested
+# ledger's opening/closing balance without pulling the whole
+# company's Ledger List, which is a much heavier Tally query
+# and was the source of repeated ReadTimeouts.
+# ============================================================
+
+def build_single_ledger_request(
+    ledger_name: str,
+    company_name: str | None = None,
+) -> str:
 
     safe_ledger_name = escape(ledger_name)
     company_xml = build_company_variable(company_name)
@@ -509,7 +505,6 @@ def build_ledger_list_request(
 # ============================================================
 # LEDGER REPORT - NATIVE TALLY REPORT
 # ============================================================
-
 
 def build_ledger_report_request(
     ledger_name: str,
@@ -567,29 +562,39 @@ def build_ledger_report_request(
 def build_ledger_voucher_collection_request(
     ledger_name: str,
     from_date: date | None = None,
-    to_date: date | None = None
-):
+    to_date: date | None = None,
+    company_name: str | None = None,
+) -> str:
     """
-    Build the Tally request used to fetch voucher entries
-    for a particular ledger.
+    ledger_name is intentionally NOT sent to Tally as a server-side
+    <FILTER> here - matching happens entirely in Python instead,
+    against every voucher this fetches. Reasoning:
 
-    The parser later filters these vouchers to return the
-    ledger's transactions and balances.
+    A TDL formula such as "$AllLedgerEntries.LedgerName = "X"" only
+    ever compares against the FIRST ledger entry of each voucher,
+    because ALLLEDGERENTRIES.LIST is a repeating list and a bare
+    dotted reference to it in a scalar formula resolves to its first
+    element - it does not walk every entry. That silently drops any
+    voucher where the requested ledger is the second (or later) leg,
+    e.g. "Cash" in a Contra voucher whose first leg is a bank ledger,
+    causing that ledger's report to come back with zero entries even
+    though Tally genuinely has them.
+
+    So instead we fetch every voucher in the date range and let the
+    Python-side parser (which correctly walks every entry in
+    ALLLEDGERENTRIES.LIST - see parser.py) do the real ledger-name
+    matching.
+
+    IMPORTANT: do not put an XML/HTML-style "<!-- -->" comment inside
+    the returned request string below. TallyPrime's own request
+    parser chokes on those and rejects the entire request with
+    "Unknown Request, cannot be processed" - this note has to live
+    here in Python instead of in the XML payload itself.
     """
 
-    company_xml = build_company_variable(
-        company_name
-    )
-
-    from_date_xml = ""
-    to_date_xml = ""
-
-    if from_date:
-        from_date_xml = (
-            f"<SVFROMDATE>"
-            f"{format_tally_date(from_date)}"
-            f"</SVFROMDATE>"
-        )
+    company_xml = build_company_variable(company_name)
+    from_date_xml = _date_variable("SVFROMDATE", from_date)
+    to_date_xml = _date_variable("SVTODATE", to_date)
 
     return f"""
 <ENVELOPE>
@@ -628,7 +633,10 @@ def build_ledger_voucher_collection_request(
                             PARTYNAME,
                             NARRATION,
                             ISDELETED,
-                            ALLLEDGERENTRIES.*
+                            ALLLEDGERENTRIES.*,
+                            ALLLEDGERENTRIES.CATEGORYALLOCATIONS.*,
+                            ALLLEDGERENTRIES.CATEGORYALLOCATIONS.COSTCENTREALLOCATIONS.*,
+                            ALLINVENTORYENTRIES.*
                         </FETCH>
 
                     </COLLECTION>
@@ -676,81 +684,528 @@ def build_voucher_detail_request(
         )
 
     return f"""
-    <ENVELOPE>
-        <HEADER>
-            <VERSION>1</VERSION>
-            <TALLYREQUEST>Export</TALLYREQUEST>
-            <TYPE>Collection</TYPE>
-            <ID>Ledger Voucher Collection</ID>
-        </HEADER>
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Voucher Detail Collection</ID>
+    </HEADER>
 
-        <BODY>
-            <DESC>
+    <BODY>
+        <DESC>
 
-                <STATICVARIABLES>
-                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-                    {company_xml}
-                    {from_date_xml}
-                    {to_date_xml}
-                </STATICVARIABLES>
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
 
-                <TDL>
-                    <TDLMESSAGE>
+                {company_xml}
+                {date_xml}
 
-                        <COLLECTION NAME="Ledger Voucher Collection">
-                            <TYPE>Voucher</TYPE>
+            </STATICVARIABLES>
 
-                            <FETCH>
-                                DATE,
-                                GUID,
-                                VOUCHERTYPENAME,
-                                VOUCHERNUMBER,
-                                NARRATION,
-                                PARTYLEDGERNAME,
-                                ISDELETED,
-                                ALLLEDGERENTRIES.*,
-                                ALLLEDGERENTRIES.CATEGORYALLOCATIONS.*,
-                                ALLLEDGERENTRIES.CATEGORYALLOCATIONS.COSTCENTREALLOCATIONS.*,
-                                ALLINVENTORYENTRIES.*
-                            </FETCH>
+            <TDL>
+                <TDLMESSAGE>
 
-                        </COLLECTION>
+                    <COLLECTION NAME="Voucher Detail Collection">
+                        <TYPE>Voucher</TYPE>
 
-                    </TDLMESSAGE>
-                </TDL>
+                        <FETCH>
+                            DATE,
+                            GUID,
+                            VOUCHERTYPENAME,
+                            VOUCHERNUMBER,
+                            REFERENCE,
+                            REFERENCEDATE,
+                            PARTYLEDGERNAME,
+                            PARTYNAME,
+                            NARRATION,
+                            ISDELETED,
+                            ISCANCELLED,
+                            ALLLEDGERENTRIES.*
+                        </FETCH>
 
-            </DESC>
-        </BODY>
-    </ENVELOPE>
-    """
+                        <FILTER>VoucherDetailFilter</FILTER>
 
-def build_bills_payable_request(
-    company_name: str | None = None
-):
-    company_xml = build_company_variable(
-        company_name
-    )
+                    </COLLECTION>
+
+                    <SYSTEM TYPE="Formulae"
+                            NAME="VoucherDetailFilter">
+                        $VoucherTypeName = "{safe_type}" AND
+                        $VoucherNumber = "{safe_number}"
+                    </SYSTEM>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK SUMMARY
+# ============================================================
+
+def build_stock_summary_request(
+    company_name: str | None = None,
+    to_date: date | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+    to_date_xml = _date_variable("SVTODATE", to_date)
 
     return f"""
-    <ENVELOPE>
-        <HEADER>
-            <VERSION>1</VERSION>
-            <TALLYREQUEST>Export</TALLYREQUEST>
-            <TYPE>Data</TYPE>
-            <ID>Bills Payable</ID>
-        </HEADER>
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Stock Summary</ID>
+    </HEADER>
 
-        <BODY>
-            <DESC>
-                <STATICVARIABLES>
-                    <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
-                    {company_xml}
-                </STATICVARIABLES>
-            </DESC>
-        </BODY>
-    </ENVELOPE>
-    """
-    
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+                {to_date_xml}
+
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Stock Summary">
+                        <TYPE>Stock Item</TYPE>
+
+                        <FETCH>
+                            NAME,
+                            PARENT,
+                            BASEUNITS,
+                            OPENINGBALANCE,
+                            OPENINGVALUE,
+                            CLOSINGBALANCE,
+                            CLOSINGVALUE,
+                            RATE
+                        </FETCH>
+
+                    </COLLECTION>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK ITEM
+# ============================================================
+
+def build_stock_item_request(
+    company_name: str | None = None,
+    stock_item_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+    from_date_xml = _date_variable("SVFROMDATE", from_date)
+    to_date_xml = _date_variable("SVTODATE", to_date)
+
+    filter_xml = ""
+
+    if stock_item_name:
+        safe_name = escape(stock_item_name)
+
+        filter_xml = f"""
+                        <FILTER>StockItemFilter</FILTER>
+        """
+
+        system_formula = f"""
+                    <SYSTEM TYPE="Formulae"
+                            NAME="StockItemFilter">
+                        $Name = "{safe_name}"
+                    </SYSTEM>
+        """
+    else:
+        system_formula = ""
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Stock Item Details</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+                {from_date_xml}
+                {to_date_xml}
+
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Stock Item Details">
+                        <TYPE>Stock Item</TYPE>
+
+                        {filter_xml}
+
+                        <FETCH>
+                            NAME,
+                            PARENT,
+                            BASEUNITS,
+                            OPENINGBALANCE,
+                            OPENINGVALUE,
+                            CLOSINGBALANCE,
+                            CLOSINGVALUE,
+                            RATE
+                        </FETCH>
+
+                    </COLLECTION>
+
+                    {system_formula}
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK GROUPS
+# ============================================================
+
+def build_stock_group_request(
+    company_name: str | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Stock Groups</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Stock Groups">
+                        <TYPE>Stock Group</TYPE>
+
+                        <FETCH>
+                            NAME,
+                            PARENT,
+                            ISADDABLE,
+                            BASEUNITS
+                        </FETCH>
+
+                    </COLLECTION>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK CATEGORIES
+# ============================================================
+
+def build_stock_category_request(
+    company_name: str | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Stock Categories</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Stock Categories">
+                        <TYPE>Stock Category</TYPE>
+
+                        <FETCH>
+                            NAME,
+                            PARENT
+                        </FETCH>
+
+                    </COLLECTION>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# GODOWNS
+# ============================================================
+
+def build_godown_request(
+    company_name: str | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Godowns</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Godowns">
+                        <TYPE>Godown</TYPE>
+
+                        <FETCH>
+                            NAME,
+                            PARENT,
+                            ISINTERNAL
+                        </FETCH>
+
+                    </COLLECTION>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK MOVEMENT
+# ============================================================
+
+def build_stock_movement_request(
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    stock_item_name: str | None = None,
+) -> str:
+
+    company_xml = build_company_variable(company_name)
+    from_date_xml = _date_variable("SVFROMDATE", from_date)
+    to_date_xml = _date_variable("SVTODATE", to_date)
+
+    if stock_item_name:
+        safe_stock_item = escape(stock_item_name)
+
+        filter_xml = """
+                        <FILTER>StockMovementItemFilter</FILTER>
+        """
+
+        system_formula = f"""
+                    <SYSTEM TYPE="Formulae"
+                            NAME="StockMovementItemFilter">
+                        $StockItemName = "{safe_stock_item}"
+                    </SYSTEM>
+        """
+    else:
+        filter_xml = ""
+        system_formula = ""
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Stock Movement</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+                {from_date_xml}
+                {to_date_xml}
+
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Stock Movement">
+                        <TYPE>Voucher</TYPE>
+
+                        {filter_xml}
+
+                        <FETCH>
+                            DATE,
+                            GUID,
+                            VOUCHERTYPENAME,
+                            VOUCHERNUMBER,
+                            REFERENCE,
+                            PARTYLEDGERNAME,
+                            PARTYNAME,
+                            NARRATION,
+                            ALLINVENTORYENTRIES.*
+                        </FETCH>
+
+                    </COLLECTION>
+
+                    {system_formula}
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# INVENTORY REGISTER
+# ============================================================
+
+def build_inventory_register_request(
+    voucher_type: str,
+    company_name: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> str:
+
+    safe_voucher_type = escape(voucher_type)
+
+    company_xml = build_company_variable(company_name)
+    from_date_xml = _date_variable("SVFROMDATE", from_date)
+    to_date_xml = _date_variable("SVTODATE", to_date)
+
+    return f"""
+<ENVELOPE>
+    <HEADER>
+        <VERSION>1</VERSION>
+        <TALLYREQUEST>Export</TALLYREQUEST>
+        <TYPE>Collection</TYPE>
+        <ID>Inventory Register</ID>
+    </HEADER>
+
+    <BODY>
+        <DESC>
+
+            <STATICVARIABLES>
+                <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+
+                {company_xml}
+                {from_date_xml}
+                {to_date_xml}
+
+            </STATICVARIABLES>
+
+            <TDL>
+                <TDLMESSAGE>
+
+                    <COLLECTION NAME="Inventory Register">
+                        <TYPE>Voucher</TYPE>
+
+                        <FILTER>InventoryVoucherTypeFilter</FILTER>
+
+                        <FETCH>
+                            DATE,
+                            GUID,
+                            VOUCHERTYPENAME,
+                            VOUCHERNUMBER,
+                            REFERENCE,
+                            PARTYLEDGERNAME,
+                            PARTYNAME,
+                            NARRATION,
+                            ALLINVENTORYENTRIES.*
+                        </FETCH>
+
+                    </COLLECTION>
+
+                    <SYSTEM TYPE="Formulae"
+                            NAME="InventoryVoucherTypeFilter">
+                        $VoucherTypeName = "{safe_voucher_type}"
+                    </SYSTEM>
+
+                </TDLMESSAGE>
+            </TDL>
+
+        </DESC>
+    </BODY>
+</ENVELOPE>
+"""
+
+
+# ============================================================
+# STOCK ITEM LIST (chatbot)
+# ============================================================
+
 def build_stock_item_list_request(
     company_name: str | None = None,
 ):
