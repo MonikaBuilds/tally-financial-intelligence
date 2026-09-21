@@ -21,3 +21,9 @@ dist/
 # OS
 Thumbs.db
 .DS_Store
+
+# Local authentication database
+backend/data/*.db
+
+# Test-generated databases
+backend/tests/.test_data/

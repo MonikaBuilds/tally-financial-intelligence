@@ -2,7 +2,7 @@ import re
 
 from calendar import monthrange
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 
 @dataclass(frozen=True)
@@ -114,6 +114,45 @@ def resolve_date_range(
         message
     )
 
+    # --------------------------------------------------
+    # Explicit date range
+        #
+        # Examples:
+        # "from 01-07-2026 to 11-09-2026"
+        # "01-07-2026 to 11-09-2026"
+        # --------------------------------------------------
+
+    explicit_range_match = re.search(
+        r"(?:from\s+)?"
+        r"(\d{1,2}-\d{1,2}-\d{4})"
+        r"\s+(?:to|until|till)\s+"
+        r"(\d{1,2}-\d{1,2}-\d{4})",
+        text,
+    )
+
+    if explicit_range_match:
+        try:
+            from_date = datetime.strptime(
+                explicit_range_match.group(1),
+                "%d-%m-%Y",
+            ).date()
+
+            to_date = datetime.strptime(
+                explicit_range_match.group(2),
+                "%d-%m-%Y",
+            ).date()
+
+            if from_date > to_date:
+                return None
+
+            return DateRange(
+                from_date=from_date,
+                to_date=to_date,
+                label="custom date range",
+            )
+
+        except ValueError:
+            return None
     # --------------------------------------------------
     # Today
     # --------------------------------------------------

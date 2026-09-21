@@ -1,7 +1,9 @@
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+
+from app.security.auth import get_authorized_company
 
 from app.tally.service import (
     fetch_profit_loss,
@@ -275,7 +277,7 @@ def _export_response(
 async def get_profit_loss_report(
     from_date: date | None = None,
     to_date: date | None = None,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company)
 ):
     if from_date and to_date and from_date > to_date:
         raise HTTPException(
@@ -318,7 +320,7 @@ async def export_profit_loss_report(
     file_format: str,
     from_date: date | None = None,
     to_date: date | None = None,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         report = await fetch_profit_loss(
@@ -422,8 +424,8 @@ async def get_group_summary_report(
 
 @router.get("/trial-balance")
 async def get_trial_balance_report(
-    company_name: str | None = None,
-    to_date: date | None = None,
+    company_name: str | None = Depends(get_authorized_company),
+    to_date: date | None = None
 ):
     try:
         report = await fetch_trial_balance(
@@ -449,8 +451,8 @@ async def get_trial_balance_report(
 @router.get("/trial-balance/export/{file_format}")
 async def export_trial_balance_report(
     file_format: str,
-    company_name: str | None = None,
-    to_date: date | None = None,
+    company_name: str | None = Depends(get_authorized_company),
+    to_date: date | None = None
 ):
     try:
         report = await fetch_trial_balance(
@@ -764,7 +766,7 @@ async def export_payables_report(
 
 @router.get("/ledgers")
 async def get_ledger_list(
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company)
 ):
     try:
         ledgers = await fetch_ledger_list(
@@ -794,7 +796,7 @@ async def get_ledger_list(
 @router.get("/ledger")
 async def get_ledger_report(
     ledger_name: str,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     from_date: date | None = None,
     to_date: date | None = None,
 ):
@@ -868,7 +870,7 @@ async def get_ledger_report(
 async def export_ledger_report(
     file_format: str,
     ledger_name: str,
-    company_name: str | None = None,
+    company_name: str | None = Depends(get_authorized_company),
     from_date: date | None = None,
     to_date: date | None = None,
 ):

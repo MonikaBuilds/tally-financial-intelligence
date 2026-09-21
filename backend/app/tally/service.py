@@ -23,6 +23,9 @@ from app.tally.xml_builder import (
     build_godown_request,
     build_stock_movement_request,
     build_inventory_register_request,
+    build_ledger_report_request,
+    build_stock_item_list_request,
+    
 )
 
 from app.tally.parser import (
@@ -47,6 +50,8 @@ from app.tally.parser import (
     parse_stock_valuation,
     parse_negative_stock,
     _parse_custom_voucher_ledger_rows,
+    parse_stock_item_list,
+    
 )
 
 
@@ -770,164 +775,29 @@ async def fetch_stock_summary(
         )
     )
 
-    return parse_stock_summary(response)
-
-
-# ============================================================
-# STOCK ITEM
-# ============================================================
-
-async def fetch_stock_item(
+    return parse_outstanding_report(
+        response,
+        report_type="payable"
+    )
+    
+async def fetch_stock_item_list(
     company_name: str | None = None,
-    stock_item_name: str | None = None,
-    from_date: date | None = None,
-    to_date: date | None = None,
-):
+) -> list[dict]:
+    """
+    Fetch stock item details from Tally and return them
+    as a clean Python list.
+    """
+
+    # Build the XML request for inventory items.
+    xml_request = build_stock_item_list_request(
+        company_name=company_name
+    )
+
+    # Use the same Tally client used by the other service functions.
     response = await client.send_xml(
-        build_stock_item_request(
-            company_name=company_name,
-            stock_item_name=stock_item_name,
-            from_date=from_date,
-            to_date=to_date,
-        )
+        xml_request
     )
 
-    return parse_stock_summary(response)
-
-
-# ============================================================
-# STOCK GROUPS
-# ============================================================
-
-async def fetch_stock_groups(
-    company_name: str | None = None,
-):
-    response = await client.send_xml(
-        build_stock_group_request(
-            company_name=company_name,
-        )
-    )
-
-    print(
-        "\n========== TALLY RAW STOCK GROUP XML =========="
-    )
-    print(response)
-    print(
-        "========== END TALLY RAW STOCK GROUP XML ==========\n"
-    )
-
-    return parse_stock_groups(response)
-
-
-# ============================================================
-# STOCK CATEGORIES
-# ============================================================
-
-async def fetch_stock_categories(
-    company_name: str | None = None,
-):
-    response = await client.send_xml(
-        build_stock_category_request(
-            company_name=company_name,
-        )
-    )
-
-    return parse_stock_categories(response)
-
-
-# ============================================================
-# GODOWNS
-# ============================================================
-
-async def fetch_godowns(
-    company_name: str | None = None,
-):
-    response = await client.send_xml(
-        build_godown_request(
-            company_name=company_name,
-        )
-    )
-
-    return parse_godowns(response)
-
-
-# ============================================================
-# STOCK MOVEMENT
-# ============================================================
-
-async def fetch_stock_movement(
-    company_name: str | None = None,
-    from_date: date | None = None,
-    to_date: date | None = None,
-    stock_item_name: str | None = None,
-):
-    response = await client.send_xml(
-        build_stock_movement_request(
-            company_name=company_name,
-            from_date=from_date,
-            to_date=to_date,
-            stock_item_name=stock_item_name,
-        )
-    )
-
-    return parse_stock_movement(response)
-
-
-# ============================================================
-# INVENTORY BOOKS / REGISTERS
-# ============================================================
-
-async def fetch_inventory_register(
-    voucher_type: str,
-    company_name: str | None = None,
-    from_date: date | None = None,
-    to_date: date | None = None,
-):
-    response = await client.send_xml(
-        build_inventory_register_request(
-            voucher_type=voucher_type,
-            company_name=company_name,
-            from_date=from_date,
-            to_date=to_date,
-        )
-    )
-
-    return parse_inventory_register_summary(
-        response
-    )
-
-
-# ============================================================
-# STOCK VALUATION
-# ============================================================
-
-async def fetch_stock_valuation(
-    company_name: str | None = None,
-    to_date: date | None = None,
-):
-    response = await client.send_xml(
-        build_stock_summary_request(
-            company_name=company_name,
-            to_date=to_date,
-        )
-    )
-
-    return parse_stock_valuation(response)
-
-
-# ============================================================
-# NEGATIVE STOCK
-# ============================================================
-
-async def fetch_negative_stock(
-    company_name: str | None = None,
-    to_date: date | None = None,
-):
-    response = await client.send_xml(
-        build_stock_summary_request(
-            company_name=company_name,
-            to_date=to_date,
-        )
-    )
-
-    return parse_negative_stock(response)
+    # Convert the XML response into Python dictionaries
+    # so other parts of the application can use the stock data easily.
+    return parse_stock_item_list(response)
