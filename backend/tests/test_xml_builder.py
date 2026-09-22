@@ -1,11 +1,11 @@
 from datetime import date
 
-from app.tally.xml_builder import (
-    build_company_variable,
+from app.tally.xml_builders.common import build_company_variable
+from app.tally.xml_builders.financial import (
     build_profit_loss_request,
     build_trial_balance_request,
     build_balance_sheet_request,
-    build_voucher_bills_request
+    build_voucher_bills_request,
 )
 
 

@@ -1,7 +1,5 @@
-from app.tally.parser import (
-    format_tally_date,
-    parse_outstanding_report
-)
+from app.tally.parsers.common import format_tally_date
+from app.tally.parsers.financial import parse_outstanding_report
 
 
 def test_format_tally_date_compact():
