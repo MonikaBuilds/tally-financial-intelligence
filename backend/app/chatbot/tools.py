@@ -1,6 +1,6 @@
 from app.chatbot.resolver import resolve_party_name, resolve_name
 from datetime import date
-from app.tally.parser import to_optional_float
+from app.tally.parsers.common import to_optional_float
 from calendar import monthrange
 import re
 import asyncio
@@ -29,7 +29,6 @@ from app.financial.service import (
 from app.financial.calculations import (
     build_dashboard_financials
 )
-from app.tally.parser import to_optional_float
 
 
 def _success(data: dict) -> dict:
